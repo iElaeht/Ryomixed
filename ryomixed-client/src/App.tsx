@@ -1,235 +1,181 @@
-import { useState, useEffect } from 'react'
-import './App.css'
+import { useState, useEffect } from 'react';
+import Nav from './components/ui/Navbar';
+import Footer from './components/ui/Footer';
+import ModalAbout from './components/ui/ModalAbout';
+import YouTubeFlow from './components/YouTubeFlow';
+import TikTokFlow from './components/TikTokFlow';
+import { Search, Loader2, ClipboardPaste } from 'lucide-react';
 
-interface Format {
-  id: string;
-  label: string;
-  ext: string;
-}
-
-interface VideoInfo {
+// Interfaz alineada con la estructura del Backend
+interface RyoData {
+  type: 'video' | 'photos';
   title: string;
   sanitizedTitle: string;
   author: string;
   thumbnail: string;
-  formats: Format[];
-  isTikTok: boolean;
+  duration?: number;
+  urls: string[];
+  audioUrl?: string;
+  formats?: Array<{ id: string; label: string; ext: string }>;
 }
 
 function App() {
-  const [url, setUrl] = useState('')
-  const [processedUrl, setProcessedUrl] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [videoData, setVideoData] = useState<VideoInfo | null>(null)
-  
-  // Lógica de pasos para la tarjeta
-  const [downloadStep, setDownloadStep] = useState<1 | 2 | 3>(1)
-  const [selectedType, setSelectedType] = useState<'mp4' | 'mp3' | null>(null)
-  const [selectedQuality, setSelectedQuality] = useState<string>('')
-  
-  const [message, setMessage] = useState('')
-  const [showAbout, setShowAbout] = useState(false)
-  const [downloading, setDownloading] = useState(false)
+  const [url, setUrl] = useState('');
+  const [videoData, setVideoData] = useState<RyoData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
 
-  // Bloqueo de inspección (Seguridad)
+  // Seguridad: Bloqueo de inspección para proteger el proyecto AI Mangas
   useEffect(() => {
-    const disableDevTools = (e: MouseEvent | KeyboardEvent) => {
-      if (e instanceof MouseEvent && e.button === 2) e.preventDefault();
-      if (e instanceof KeyboardEvent) {
-        if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) || (e.ctrlKey && e.key === 'u')) {
-          e.preventDefault();
-        }
+    const handleContextMenu = (e: MouseEvent) => e.preventDefault();
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === 'F12' ||
+        (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
+        (e.ctrlKey && e.key === 'U')
+      ) {
+        e.preventDefault();
       }
     };
-    document.addEventListener('contextmenu', (e) => e.preventDefault());
-    document.addEventListener('keydown', disableDevTools);
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.removeEventListener('contextmenu', (e) => e.preventDefault());
-      document.removeEventListener('keydown', disableDevTools);
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
 
-  const handleProcessLink = async () => {
-    const rawUrl = url.trim();
-    if (!rawUrl) {
-      setMessage("Pega una URL válida");
-      return;
-    }
-    setLoading(true);
-    setVideoData(null);
-    setDownloadStep(1); // Reset al primer paso
-    setSelectedType(null);
-    setMessage('');
-    
+  const handlePaste = async () => {
     try {
-      const response = await fetch('http://localhost:4000/api/download/info', {
+      const text = await navigator.clipboard.readText();
+      setUrl(text);
+    } catch (err) {
+      console.error('Error al pegar:', err);
+    }
+  };
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Limpieza de URL: extrae solo el enlace si hay texto extra
+    const cleanUrl = url.trim().split(/\s+/).find(part => part.includes('http'));
+    if (!cleanUrl) return;
+
+    setLoading(true);
+    setVideoData(null); // Reset visual para evitar persistencia de datos previos
+
+    try {
+      const isYouTube = cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be');
+      const endpoint = isYouTube ? '/api/youtube/info' : '/api/tiktok/info';
+      
+      const response = await fetch(`http://localhost:4000${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: rawUrl })
+        body: JSON.stringify({ url: cleanUrl })
       });
-      const data = await response.json();
-      if (response.ok && data.video) {
-        setVideoData(data.video);
-        setProcessedUrl(rawUrl);
-        if (data.video.formats.length > 0) {
-          setSelectedQuality(data.video.formats[0].id);
-        }
-      } else {
-        setMessage(data.message || "No se pudo procesar este video.");
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error en el servidor');
       }
-    } catch {
-      setMessage("Error de conexión con el servidor.");
+      
+      const responseData = await response.json();
+      
+      // Verificación de la propiedad 'data' que viene del backend
+      if (responseData.success && responseData.data) {
+        const info = responseData.data;
+
+        const finalData: RyoData = {
+          type: info.type || 'video',
+          title: info.title || "Sin título",
+          sanitizedTitle: info.sanitizedTitle || info.title || "AI_Mangas_Media",
+          author: info.author || "Desconocido",
+          thumbnail: info.thumbnail || "",
+          urls: info.urls || [],
+          audioUrl: info.audioUrl,
+          duration: info.duration,
+          formats: info.formats
+        };
+
+        setVideoData(finalData);
+      } else {
+        throw new Error("No se pudo obtener información válida del enlace.");
+      }
+
+    } catch (error: unknown) {
+      console.error("Search Error:", error);
+      if (error instanceof Error) alert(error.message);
+      else alert("No se pudo conectar con el servidor.");
     } finally {
       setLoading(false);
     }
   };
 
-  const startDownload = () => {
-    if (!videoData || !selectedType) return;
-    setDownloading(true);
-    
-    const qualityParam = selectedType === 'mp4' ? `&quality=${selectedQuality}` : '';
-    const titleParam = `&title=${encodeURIComponent(videoData.sanitizedTitle)}`;
-    const downloadUrl = `http://localhost:4000/api/download?url=${encodeURIComponent(processedUrl)}&format=${selectedType}${qualityParam}${titleParam}`;
-    
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.setAttribute('download', ''); 
-    document.body.appendChild(link);
-    link.click();
-    
-    setTimeout(() => {
-      document.body.removeChild(link);
-      setDownloading(false);
-      setDownloadStep(1); // Reiniciar flujo tras descargar
-    }, 2000);
-  };
-
   return (
-    <div className="app-wrapper">
-      <nav className="navbar">
-        <div className="nav-container">
-          <h2 className="nav-logo">Ryo<span>Mixed</span></h2>
-          <button className="btn-about" onClick={() => setShowAbout(true)}>¿Quiénes Somos?</button>
-        </div>
-      </nav>
+    <div className="flex flex-col min-h-screen bg-[#0a0f1a] text-white selection:bg-blue-500/30 transition-colors duration-500">
+      
+      <Nav onOpenAbout={() => setIsAboutOpen(true)} />
 
-      <div className="container">
-        <header className="hero-section">
-          <h1 className="main-title">Descargas <span>Sencillas.</span></h1>
-          <p className="subtitle">YouTube & TikTok sin complicaciones.</p>
-        </header>
-
-        <main className="content-area">
-          <div className="input-group">
-            <div className="input-wrapper">
-              <input 
-                type="text" 
-                placeholder="Pega el link aquí..." 
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleProcessLink()}
-                className="url-input"
-              />
-            </div>
-            <button onClick={handleProcessLink} disabled={loading} className="btn-process">
-              {loading ? '...' : 'Obtener'}
-            </button>
+      <main className="flex-grow flex flex-col items-center px-4 pt-10 pb-10 md:pt-16 md:pb-20">
+        <div className="w-full max-w-4xl text-center flex flex-col items-center">
+          
+          <div className="space-y-6 mb-10">
+            <h1 className="text-5xl md:text-7xl font-black tracking-tighter leading-tight animate-in fade-in slide-in-from-bottom-4 duration-1000">
+              Tus momentos, <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-blue-200 to-cyan-300">
+                en tus manos.
+              </span>
+            </h1>
           </div>
 
-          {message && <div className="error-badge">{message}</div>}
-
-          {videoData && (
-            <div className="video-result-card animate-fade-in">
-              <div className="thumbnail-wrapper">
-                <img src={videoData.thumbnail} alt="Preview" />
-              </div>
-              <div className="video-info">
-                <h3>{videoData.title}</h3>
-                <p className="author">{videoData.author}</p>
-                
-                <div className="stepper-content">
-                  {/* PASO 1: Selección de Tipo */}
-                  {downloadStep === 1 && (
-                    <div className="step-box animate-slide-up">
-                      <label className="step-label">Paso 1: Elige el formato</label>
-                      <div className="action-buttons">
-                        <button className="btn-dl mp4" onClick={() => { setSelectedType('mp4'); setDownloadStep(2); }}>Video (MP4)</button>
-                        <button className="btn-dl mp3" onClick={() => { setSelectedType('mp3'); setDownloadStep(2); }}>Audio (MP3)</button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* PASO 2: Selección de Calidad */}
-                  {downloadStep === 2 && (
-                    <div className="step-box animate-slide-up">
-                      <label className="step-label">
-                        Paso 2: Calidad de {selectedType === 'mp4' ? 'Video' : 'Audio'}
-                      </label>
-                      <select 
-                        value={selectedQuality} 
-                        onChange={(e) => setSelectedQuality(e.target.value)}
-                        className="select-style"
-                      >
-                        {selectedType === 'mp4' ? (
-                          videoData.formats.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)
-                        ) : (
-                          <>
-                            <option value="320">Alta Calidad (320kbps)</option>
-                            <option value="192">Estándar (192kbps)</option>
-                            <option value="128">Baja (128kbps)</option>
-                          </>
-                        )}
-                      </select>
-                      <button className="btn-next" onClick={() => setDownloadStep(3)}>Continuar →</button>
-                      <button className="btn-back" onClick={() => setDownloadStep(1)}>← Volver</button>
-                    </div>
-                  )}
-
-                  {/* PASO 3: Confirmar Descarga */}
-                  {downloadStep === 3 && (
-                    <div className="step-box animate-slide-up">
-                      <label className="step-label">Paso 3: ¡Todo listo!</label>
-                      <button 
-                        className={`btn-final-download ${downloading ? 'loading' : ''}`}
-                        onClick={startDownload}
-                        disabled={downloading}
-                      >
-                        {downloading ? 'Iniciando...' : `Descargar ${selectedType?.toUpperCase()}`}
-                      </button>
-                      {!downloading && <button className="btn-back" onClick={() => setDownloadStep(2)}>← Cambiar calidad</button>}
-                    </div>
-                  )}
-                </div>
-              </div>
+          <form onSubmit={handleSearch} className="w-full max-w-2xl relative group mb-8">
+            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-blue-400/50 group-focus-within:text-blue-400 transition-colors">
+              <Search className="w-6 h-6" />
             </div>
-          )}
-        </main>
-      </div>
+            
+            <input 
+              type="text"
+              placeholder="Pega el link de YouTube o TikTok..."
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="w-full bg-blue-950/20 border border-blue-900/30 rounded-2xl py-5 px-6 pl-14 pr-[180px] text-white placeholder:text-blue-300/20 focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all text-lg shadow-[0_0_30px_rgba(0,0,0,0.3)]"
+            />
 
-      <footer className="footer">
-        <div className="footer-content">
-          <p>© 2026 <strong>RyoMixed</strong> - Media Downloader</p>
-          <span className="footer-tag">Seguro • Rápido • Sin Anuncios</span>
-        </div>
-      </footer>
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
+              <button 
+                type="button"
+                onClick={handlePaste}
+                className="p-2.5 rounded-xl bg-blue-900/20 hover:bg-blue-900/40 text-blue-300/50 hover:text-blue-100 transition-all active:scale-95 border border-blue-800/20"
+                title="Pegar enlace"
+              >
+                <ClipboardPaste className="w-5 h-5" />
+              </button>
 
-      {showAbout && (
-        <div className="modal-overlay" onClick={() => setShowAbout(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setShowAbout(false)}>×</button>
-            <div className="modal-header"><h2 className="nav-logo">Ryo<span>Mixed</span></h2></div>
-            <div className="modal-body">
-              <p className="highlight-text">"RyoMixed no es solo un convertidor, es la herramienta definitiva..."</p>
-              <div className="divider"></div>
-              <p className="description">Nuestro sistema es personal, seguro y funciona sin necesidad de recolectar datos innecesarios...</p>
+              <button 
+                type="submit"
+                disabled={loading || !url}
+                className="bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-600/20 disabled:bg-gray-800 disabled:text-gray-500 text-white px-6 py-2.5 rounded-xl font-bold transition-all active:scale-95 flex items-center gap-2"
+              >
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Buscar'}
+              </button>
             </div>
-            <button className="btn-process modal-btn-fix" onClick={() => setShowAbout(false)}>Entendido</button>
+          </form>
+
+          {/* Área de resultados: Renderiza el Flow correspondiente según la URL */}
+          <div className="w-full mt-4 flex justify-center">
+            {videoData && (
+              url.toLowerCase().includes('youtube') || url.toLowerCase().includes('youtu.be')
+                ? <YouTubeFlow data={videoData} originalUrl={url} />
+                : <TikTokFlow data={videoData} />
+            )}
           </div>
         </div>
-      )}
+      </main>
+
+      <Footer />
+      <ModalAbout isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

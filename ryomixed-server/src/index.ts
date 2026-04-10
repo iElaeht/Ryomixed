@@ -2,28 +2,31 @@ import 'dotenv/config';
 import express from 'express';
 import type { Request, Response } from 'express'; 
 import cors from 'cors';
-import downloadRoutes from './routes/download.routes.js';
+// Importamos el router central que unifica YouTube y TikTok
+import apiRoutes from './routes/index.js'; 
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
 // --- CONFIGURACIÓN DE MIDDLEWARES ---
 
-// Configuramos CORS de forma explícita para evitar el estado "Pending" en el navegador
 app.use(cors({
-    origin: '*', // En desarrollo puedes dejarlo así, o poner 'http://localhost:5173'
+    origin: '*', 
     methods: ['GET', 'POST'],
     allowedHeaders: ['Content-Type']
 }));
 
-// Aumentamos el límite del body por si acaso envías URLs muy largas o metadatos pesados
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// --- RUTAS ---
+// --- RUTAS MODULARES ---
 
-// Unimos las rutas de descarga
-app.use('/api/download', downloadRoutes);
+/** * Ahora usamos /api como base. 
+ * Tus endpoints serán:
+ * - POST /api/youtube/info
+ * - POST /api/tiktok/info
+ */
+app.use('/api', apiRoutes);
 
 // Ruta de salud del sistema
 app.get('/api/health', (req: Request, res: Response) => {
@@ -45,6 +48,5 @@ const server = app.listen(PORT, () => {
     console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
 });
 
-// Aumentamos el timeout del servidor. 
-// Las descargas de videos largos pueden tardar más del tiempo por defecto (120s).
-server.timeout = 300000; // 5 minutos
+// Timeout de 5 minutos para descargas pesadas
+server.timeout = 300000;

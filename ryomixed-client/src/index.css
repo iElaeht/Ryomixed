@@ -1,88 +1,14 @@
+@import "tailwindcss";
+
+/* Tus estilos personalizados debajo */
 :root {
-  /* Variables de Color Actualizadas para RyoMixed */
-  --bg: #0b0f1a;
-  --text: #94a3b8;
-  --text-h: #f8fafc;
-  --accent: #3b82f6;
-  --border: transparent; /* Eliminamos el color de borde para evitar líneas */
-  
-  /* Tipografía */
-  --sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --heading: 'Inter', system-ui, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: dark; /* Forzamos esquema oscuro */
-  color: var(--text);
-  background: var(--bg);
-  
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  color-scheme: dark;
 }
 
-/* Reset y Base */
 body {
   margin: 0;
   padding: 0;
-  background-color: var(--bg);
-  min-height: 100vh;
-  overflow-x: hidden; /* Evita cualquier desbordamiento horizontal */
-}
-
-/* CONFIGURACIÓN CRÍTICA: Limpieza de líneas y ancho total */
-#root {
-  width: 100%;            /* Ocupa todo el ancho disponible */
-  max-width: 100%;        /* Eliminado el límite de 1126px */
-  margin: 0;              /* Eliminado el centrado restrictivo */
-  padding: 0;
-  text-align: center;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-  
-  /* Esta línea de abajo era la que causaba las rayas laterales */
-  border-inline: none !important; 
-}
-
-/* Tipografías Globales */
-h1, h2, h3 {
-  font-family: var(--heading);
-  font-weight: 700;
-  color: var(--text-h);
-  margin: 0;
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-  }
-}
-
-p {
-  margin: 0;
-}
-
-/* Utilidades para código o contadores */
-code {
-  font-family: var(--mono);
-  font-size: 15px;
-  padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
-  color: var(--accent);
-}
-
-/* Selección de texto */
-::selection {
-  background: rgba(59, 130, 246, 0.3);
+  background-color: #0f0f0f;
   color: white;
+  font-family: 'Inter', system-ui, sans-serif;
 }

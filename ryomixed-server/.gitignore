@@ -3,3 +3,4 @@ dist/
 .env
 cookies.txt
 *-player-script.js
+.vscode/
