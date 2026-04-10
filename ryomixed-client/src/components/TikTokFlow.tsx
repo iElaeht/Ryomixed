@@ -8,7 +8,7 @@ interface TikTokFlowProps {
     sanitizedTitle: string;
     author: string;
     thumbnail: string;
-    urls: string[]; // En video, el primer elemento es el link directo
+    urls: string[];
     audioUrl?: string;
   };
 }
@@ -28,11 +28,12 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data }) => {
     );
   };
 
-const handleDownload = async (mode: 'video' | 'audio' | 'single' | 'photos') => {
-    // ESTA LÓGICA DETECTA SI ESTÁS EN TU PC O EN LA NUBE
+  const handleDownload = async (mode: 'video' | 'audio' | 'single' | 'photos') => {
+    // URL DE TU SERVIDOR EN RENDER
+    const RENDER_URL = 'https://ryomixed.onrender.com';
     const baseUrlApi = window.location.hostname === 'localhost' 
       ? 'http://localhost:4000' 
-      : 'https://tu-url-de-render.onrender.com';
+      : RENDER_URL;
 
     const downloadEndpoint = `${baseUrlApi}/api/tiktok/download`;
     
@@ -55,9 +56,9 @@ const handleDownload = async (mode: 'video' | 'audio' | 'single' | 'photos') => 
         type: downloadType
       });
 
+      // Crear link temporal para forzar la descarga
       const link = document.createElement('a');
       link.href = `${downloadEndpoint}?${params.toString()}`;
-      link.setAttribute('download', `${data.sanitizedTitle}.${mode === 'audio' ? 'mp3' : 'mp4'}`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -66,7 +67,8 @@ const handleDownload = async (mode: 'video' | 'audio' | 'single' | 'photos') => 
       console.error("Error en la descarga:", error);
       alert("Hubo un fallo al procesar la descarga.");
     } finally {
-      setTimeout(() => setDownloading(false), 2000);
+      // Dejamos el estado de carga un poco más de tiempo para feedback visual
+      setTimeout(() => setDownloading(false), 3000);
     }
   };
 

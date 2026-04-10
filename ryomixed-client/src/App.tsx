@@ -4,20 +4,29 @@ import Footer from './components/ui/Footer';
 import ModalAbout from './components/ui/ModalAbout';
 import YouTubeFlow from './components/YouTubeFlow';
 import TikTokFlow from './components/TikTokFlow';
-import { Search, Loader2, ClipboardPaste } from 'lucide-react';
+import { Search, Loader2, ClipboardPaste, Sparkles } from 'lucide-react';
 
-// 1. Definimos las interfaces exactas para evitar el error de la imagen 2
+// --- CONFIGURACIÓN DE URL ---
+const RENDER_URL = 'https://ryomixed.onrender.com';
+const LOCAL_URL = 'http://localhost:4000';
+
+// --- INTERFACES ---
 type TikTokType = 'video' | 'photos';
 
-interface RyoData {
-  type: 'youtube' | TikTokType; // Aquí unificamos los tipos
+// Definimos la interfaz que espera el componente TikTokFlow para evitar el 'any'
+interface TikTokData {
+  type: TikTokType;
   title: string;
   sanitizedTitle: string;
   author: string;
   thumbnail: string;
-  duration?: number;
   urls: string[];
   audioUrl?: string;
+}
+
+interface RyoData extends Omit<TikTokData, 'type'> {
+  type: 'youtube' | TikTokType;
+  duration?: number;
   formats?: Array<{ id: string; label: string; ext: string }>;
 }
 
@@ -58,7 +67,11 @@ function App() {
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanUrl = url.trim().split(/\s+/).find(part => part.includes('http'));
-    if (!cleanUrl) return;
+    
+    if (!cleanUrl) {
+      alert("Por favor, ingresa una URL válida.");
+      return;
+    }
 
     setLoading(true);
     setVideoData(null); 
@@ -66,7 +79,7 @@ function App() {
     try {
       const isYouTube = cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be');
       const endpoint = isYouTube ? '/api/youtube/info' : '/api/tiktok/info';
-      const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : '';
+      const baseUrl = window.location.hostname === 'localhost' ? LOCAL_URL : RENDER_URL;
 
       const response = await fetch(`${baseUrl}${endpoint}`, {
         method: 'POST',
@@ -84,7 +97,6 @@ function App() {
       if (responseData.success && responseData.data) {
         const info = responseData.data;
         
-        // 2. Construcción segura del objeto para que TypeScript no se queje
         const finalData: RyoData = {
           type: isYouTube ? 'youtube' : (info.type as TikTokType || 'video'),
           title: info.title || "Sin título",
@@ -101,7 +113,7 @@ function App() {
         throw new Error("El servidor no devolvió datos válidos.");
       }
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : "Error de conexión";
+      const msg = error instanceof Error ? error.message : "Error de conexión con RyoMixed";
       alert(msg);
     } finally {
       setLoading(false);
@@ -164,12 +176,11 @@ function App() {
             </div>
           </form>
 
-          {/* Área de Resultados - AQUÍ SE ELIMINA EL ERROR DE LA IMAGEN 3 */}
           <div className="w-full mt-4 flex justify-center pb-20">
             {videoData && (
               videoData.type === 'youtube' 
                 ? <YouTubeFlow data={videoData} originalUrl={url} />
-                : <TikTokFlow data={videoData as { type: TikTokType; title: string; sanitizedTitle: string; author: string; thumbnail: string; urls: string[]; audioUrl?: string; }} />
+                : <TikTokFlow data={videoData as TikTokData} />
             )}
           </div>
         </div>
@@ -180,11 +191,5 @@ function App() {
     </div>
   );
 }
-
-const Sparkles = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.286-6.857L1 12l7.714-2.143L11 3z" />
-  </svg>
-);
 
 export default App;

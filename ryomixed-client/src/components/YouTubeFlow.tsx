@@ -29,11 +29,16 @@ const YouTubeFlow: React.FC<YouTubeFlowProps> = ({ data, originalUrl }) => {
   };
 
   const handleDownload = () => {
-    // Apuntamos a la nueva ruta modular del servidor
-    const baseUrl = 'http://localhost:4000/api/youtube/download';
+    // --- CONFIGURACIÓN DE URL ---
+    const RENDER_URL = 'https://ryomixed.onrender.com';
+    const baseUrlApi = window.location.hostname === 'localhost' 
+      ? 'http://localhost:4000' 
+      : RENDER_URL;
+
+    // Apuntamos a la ruta completa del servidor
+    const downloadEndpoint = `${baseUrlApi}/api/youtube/download`;
     
-    // Si es MP3, enviamos 'mp3' como formato. 
-    // Si es video, enviamos el ID específico de la calidad (ej: '137', '22').
+    // Si es MP3, enviamos 'mp3'. Si es video, el ID de calidad.
     const finalFormat = downloadType === 'mp3' ? 'mp3' : selectedQualityId;
 
     const params = new URLSearchParams({
@@ -42,9 +47,11 @@ const YouTubeFlow: React.FC<YouTubeFlowProps> = ({ data, originalUrl }) => {
       title: data.sanitizedTitle || data.title
     });
 
+    // Creamos el link temporal para iniciar la descarga
     const link = document.createElement('a');
-    link.href = `${baseUrl}?${params.toString()}`;
-    link.setAttribute('download', ''); 
+    link.href = `${downloadEndpoint}?${params.toString()}`;
+    
+    // Agregamos al body, clickeamos y removemos
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -113,7 +120,6 @@ const YouTubeFlow: React.FC<YouTubeFlowProps> = ({ data, originalUrl }) => {
                   <button 
                     onClick={() => { 
                       setDownloadType('mp4'); 
-                      // Pre-seleccionamos la primera calidad disponible
                       if(data.formats?.length) setSelectedQualityId(data.formats[0].id);
                       setStep(2); 
                     }}
