@@ -1,32 +1,40 @@
 import type { Request, Response } from 'express';
-import { getVideoInfo, downloadStream } from '../services/youtube.service.js';
+import { YouTubeService } from '../services/youtube.service.js';
 
-export const getInfo = async (req: Request, res: Response) => {
-    const { url } = req.body;
-    if (!url) return res.status(400).json({ message: "La URL es obligatoria" });
+const ytService = new YouTubeService();
 
-    try {
-        const info = await getVideoInfo(url);
-        // Enviamos el objeto 'info' directamente
-        return res.json(info); 
-    } catch (error: any) {
-        return res.status(400).json({ message: error.message });
+export class YouTubeController {
+    async getInfo(req: Request, res: Response) {
+        try {
+            const { url } = req.body;
+            if (!url) return res.status(400).json({ success: false, message: "URL requerida" });
+
+            const info = await ytService.getInfo(url);
+            res.json({ success: true, data: info });
+        } catch (error: any) {
+            console.error("❌ [YT Controller Error]:", error.message);
+            res.status(400).json({ success: false, message: error.message });
+        }
     }
-};
 
-export const download = async (req: Request, res: Response) => {
-    const { url, format, quality, title } = req.query;
-    if (!url) return res.status(400).send('Falta la URL');
+    async download(req: Request, res: Response) {
+        try {
+            const { url, format, title } = req.query;
+            if (!url) return res.status(400).send("Falta la URL");
 
-    try {
-        const isMp3 = format === 'mp3';
-        const fileName = title ? `${title}.${isMp3 ? 'mp3' : 'mp4'}` : `video.${isMp3 ? 'mp3' : 'mp4'}`;
+            const isAudio = format === 'mp3';
+            const ext = isAudio ? 'mp3' : 'mp4';
+            
+            // Sanitización para el header de descarga
+            const safeTitle = String(title || 'RyoMixed_Video').replace(/[^a-zA-Z0-9]/g, '_');
 
-        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
-        res.setHeader('Content-Type', isMp3 ? 'audio/mpeg' : 'video/mp4');
+            res.setHeader('Content-Type', isAudio ? 'audio/mpeg' : 'video/mp4');
+            res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}.${ext}"`);
 
-        downloadStream(url as string, isMp3 ? 'mp3' : (quality as string), res);
-    } catch (error: any) {
-        if (!res.headersSent) res.status(500).send("Error en la descarga");
+            await ytService.execDownload(url as string, format as string, res);
+        } catch (error: any) {
+            console.error("❌ [YT Download Error]:", error.message);
+            if (!res.headersSent) res.status(500).send("Error procesando la descarga");
+        }
     }
-};
+}

@@ -1,25 +1,9 @@
 import axios from 'axios';
 
-interface TikTokRawResponse {
-  images?: string[];
-  title?: string;
-  description?: string;
-  video_url?: string;
-  cover?: string;
-  author?: {
-    nickname: string;
-    avatar?: string;
-  };
-  music_info?: {
-    play_url: string;
-    title: string;
-  };
-}
-
 export interface TikTokMedia {
   type: 'video' | 'photos';
   title: string;
-  sanitizedTitle: string; 
+  sanitizedTitle: string;
   author: string;
   thumbnail: string;
   urls: string[];
@@ -28,75 +12,51 @@ export interface TikTokMedia {
 
 export class TikTokService {
   
-  private cleanTitle(text: string): string {
-    if (!text) return 'TikTok_Media';
-    // Quitamos los hashtags y emojis básicos para el nombre del archivo
-    const parts = text.split('#');
-    const firstPart = parts[0];
-    if (!firstPart) return 'TikTok_Media';
-
+  // Limpieza de títulos para nombres de archivos
+  private sanitize(text: string): string {
+    if (!text) return 'RyoMixed_Media';
+    // Quitamos hashtags y caracteres no permitidos en sistemas de archivos
+    const firstPart = text.split('#')[0] || 'RyoMixed_Media';
     return firstPart
       .trim()
       .replace(/[/\\?%*:|"<>]/g, '') 
-      .replace(/\s+/g, '_')          
-      .substring(0, 100)             
-      || 'TikTok_Media';             
+      .replace(/\s+/g, '_')
+      .substring(0, 80) || 'RyoMixed_Media';
   }
 
-  async getVideoInfo(url: string): Promise<TikTokMedia> {
+  async getInfo(url: string): Promise<TikTokMedia> {
     try {
-      const rawResponse = await this.fetchFromAPI(url); 
+      // Usamos la API de TikWM con URLSearchParams para máxima compatibilidad
+      const res = await axios.post('https://www.tikwm.com/api/', new URLSearchParams({
+        url: url,
+        hd: '1' 
+      }));
 
-      const isPhotos = !!(rawResponse.images && rawResponse.images.length > 0);
-      
-      // Priorizamos el título o descripción real que venga de la API
-      const displayTitle = rawResponse.title || rawResponse.description || 'TikTok Post';
-      const cleanName = this.cleanTitle(displayTitle);
-
-      return {
-        type: isPhotos ? 'photos' : 'video',
-        title: displayTitle,
-        sanitizedTitle: cleanName,
-        author: rawResponse.author?.nickname || 'Creador de TikTok',
-        thumbnail: isPhotos ? (rawResponse.images?.[0] || '') : (rawResponse.cover || ''),
-        urls: isPhotos ? (rawResponse.images || []) : [rawResponse.video_url || ''],
-        audioUrl: rawResponse.music_info?.play_url || ''
-      };
-    } catch (error: any) {
-      console.error("Error en TikTokService:", error.message);
-      throw new Error("No se pudo extraer la información del video. El enlace podría ser privado o inválido.");
-    }
-  }
-
-  private async fetchFromAPI(url: string): Promise<TikTokRawResponse> {
-    try {
-      // Usamos la API de TikWM para obtener datos reales
-      const res = await axios.post('https://www.tikwm.com/api/', {
-        url: url
-      });
-
-      if (res.data.code !== 0) {
-        throw new Error(res.data.msg || "Error en la API externa");
+      if (res.data.code !== 0 || !res.data.data) {
+        throw new Error(res.data.msg || "No se pudo encontrar el contenido. Verifica que el link sea público.");
       }
 
       const d = res.data.data;
 
-      // Mapeamos el formato de TikWM a nuestro TikTokRawResponse
+      // Verificación de tipo: ¿Es un carrusel de imágenes?
+      const isPhotos = Array.isArray(d.images) && d.images.length > 0;
+      
+      const displayTitle = d.title || 'TikTok Post';
+
       return {
-        description: d.title, // TikWM llama 'title' a la descripción del post
-        video_url: d.play,    // Video sin marca de agua
-        cover: d.cover,
-        images: d.images,     // Si es un carrusel de fotos
-        author: {
-          nickname: d.author.nickname
-        },
-        music_info: {
-          play_url: d.music,
-          title: d.music_info.title
-        }
+        type: isPhotos ? 'photos' : 'video',
+        title: displayTitle,
+        sanitizedTitle: this.sanitize(displayTitle),
+        author: d.author?.nickname || 'Creador de TikTok',
+        thumbnail: d.cover || (isPhotos ? d.images[0] : ''),
+        // Si son fotos, mandamos el array; si es video, el link 'play' (sin marca de agua)
+        urls: isPhotos ? d.images : [d.play || d.wmplay],
+        // Extraemos el audio para la opción de descarga de MP3
+        audioUrl: d.music || d.music_info?.play || ''
       };
-    } catch (error) {
-      throw new Error("Error al conectar con el motor de extracción");
+    } catch (error: any) {
+      console.error("❌ [TikTokService] Error:", error.message);
+      throw new Error(error.message || "Error al conectar con el motor de extracción.");
     }
   }
 }

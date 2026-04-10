@@ -1,4 +1,3 @@
-// ryomixed-client/src/components/YouTubeFlow.tsx
 import React, { useState } from 'react';
 import { 
   Download, Clock, User, ChevronLeft, ChevronRight, 
@@ -20,7 +19,7 @@ interface YouTubeFlowProps {
 const YouTubeFlow: React.FC<YouTubeFlowProps> = ({ data, originalUrl }) => {
   const [step, setStep] = useState(1);
   const [downloadType, setDownloadType] = useState<'mp4' | 'mp3' | null>(null);
-  const [selectedQuality, setSelectedQuality] = useState('');
+  const [selectedQualityId, setSelectedQualityId] = useState('');
 
   const formatDuration = (seconds?: number) => {
     if (!seconds) return "0:00";
@@ -30,23 +29,28 @@ const YouTubeFlow: React.FC<YouTubeFlowProps> = ({ data, originalUrl }) => {
   };
 
   const handleDownload = () => {
+    // Apuntamos a la nueva ruta modular del servidor
     const baseUrl = 'http://localhost:4000/api/youtube/download';
+    
+    // Si es MP3, enviamos 'mp3' como formato. 
+    // Si es video, enviamos el ID específico de la calidad (ej: '137', '22').
+    const finalFormat = downloadType === 'mp3' ? 'mp3' : selectedQualityId;
+
     const params = new URLSearchParams({
       url: originalUrl,
-      format: downloadType || 'mp4',
-      quality: downloadType === 'mp3' ? 'mp3' : selectedQuality,
+      format: finalFormat, 
       title: data.sanitizedTitle || data.title
     });
+
     const link = document.createElement('a');
     link.href = `${baseUrl}?${params.toString()}`;
-    link.setAttribute('download', '');
+    link.setAttribute('download', ''); 
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   return (
-    /* Contenedor principal con ancho máximo para que no se desparrame en pantallas grandes */
     <div className="w-full max-w-5xl bg-[#0a0f1a]/80 backdrop-blur-2xl border border-white/5 rounded-[2.5rem] p-6 md:p-8 animate-in fade-in zoom-in-95 duration-500 shadow-2xl">
       <div className="flex flex-col lg:flex-row gap-12 items-center lg:items-stretch">
         
@@ -76,10 +80,9 @@ const YouTubeFlow: React.FC<YouTubeFlowProps> = ({ data, originalUrl }) => {
           </div>
         </div>
 
-        {/* LADO DERECHO: CONTENIDO (Ajustado para eliminar el aire excesivo) */}
+        {/* LADO DERECHO: INTERFAZ */}
         <div className="flex-grow flex flex-col min-h-[250px] w-full">
           
-          {/* HEADER NAVEGACIÓN */}
           <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-6">
             <div className="flex items-center gap-3">
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[9px] font-black text-white">
@@ -101,9 +104,8 @@ const YouTubeFlow: React.FC<YouTubeFlowProps> = ({ data, originalUrl }) => {
             )}
           </div>
 
-          {/* ÁREA DE ACCIÓN: Aquí limitamos el ancho para que no se vea vacío */}
           <div className="flex-grow flex flex-col justify-center items-center lg:items-start">
-            <div className="w-full max-w-sm"> {/* <-- Este max-w-sm es la clave */}
+            <div className="w-full max-w-sm">
               
               {/* PASO 1: MP4 o MP3 */}
               {step === 1 && (
@@ -111,10 +113,11 @@ const YouTubeFlow: React.FC<YouTubeFlowProps> = ({ data, originalUrl }) => {
                   <button 
                     onClick={() => { 
                       setDownloadType('mp4'); 
-                      if(data.formats?.length) setSelectedQuality(data.formats[0].id);
+                      // Pre-seleccionamos la primera calidad disponible
+                      if(data.formats?.length) setSelectedQualityId(data.formats[0].id);
                       setStep(2); 
                     }}
-                    className="group flex flex-col items-center gap-3 p-5 rounded-[1.5rem] border border-white/5 bg-white/5 hover:bg-blue-600/20 hover:border-blue-500/50 transition-all active:scale-95"
+                    className="group flex flex-col items-center gap-3 p-5 rounded-[1.5rem] border border-white/5 bg-white/5 hover:bg-blue-600/20 hover:border-blue-500/50 transition-all"
                   >
                     <PlayCircle className="w-8 h-8 text-blue-500 group-hover:scale-110 transition-transform" />
                     <span className="text-[9px] font-black text-white tracking-[0.15em]">VIDEO MP4</span>
@@ -122,10 +125,10 @@ const YouTubeFlow: React.FC<YouTubeFlowProps> = ({ data, originalUrl }) => {
                   <button 
                     onClick={() => { 
                       setDownloadType('mp3'); 
-                      setSelectedQuality('mp3');
+                      setSelectedQualityId('mp3');
                       setStep(2); 
                     }}
-                    className="group flex flex-col items-center gap-3 p-5 rounded-[1.5rem] border border-white/5 bg-white/5 hover:bg-purple-600/20 hover:border-purple-500/50 transition-all active:scale-95"
+                    className="group flex flex-col items-center gap-3 p-5 rounded-[1.5rem] border border-white/5 bg-white/5 hover:bg-purple-600/20 hover:border-purple-500/50 transition-all"
                   >
                     <Headphones className="w-8 h-8 text-purple-500 group-hover:scale-110 transition-transform" />
                     <span className="text-[9px] font-black text-white tracking-[0.15em]">AUDIO MP3</span>
@@ -133,7 +136,7 @@ const YouTubeFlow: React.FC<YouTubeFlowProps> = ({ data, originalUrl }) => {
                 </div>
               )}
 
-              {/* PASO 2: Selección de Calidad */}
+              {/* PASO 2: Calidad */}
               {step === 2 && (
                 <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
                   <div className="flex items-center gap-2 text-blue-400">
@@ -143,9 +146,9 @@ const YouTubeFlow: React.FC<YouTubeFlowProps> = ({ data, originalUrl }) => {
 
                   {downloadType === 'mp4' ? (
                     <select 
-                      value={selectedQuality}
-                      onChange={(e) => setSelectedQuality(e.target.value)}
-                      className="w-full bg-blue-900/10 text-white text-xs font-bold p-4 rounded-xl border border-white/10 outline-none cursor-pointer focus:border-blue-500/50 transition-colors appearance-none"
+                      value={selectedQualityId}
+                      onChange={(e) => setSelectedQualityId(e.target.value)}
+                      className="w-full bg-blue-900/10 text-white text-xs font-bold p-4 rounded-xl border border-white/10 outline-none cursor-pointer focus:border-blue-500/50"
                     >
                       {data.formats?.map((f) => (
                         <option key={f.id} value={f.id} className="bg-[#0a0f1a]">
@@ -162,14 +165,14 @@ const YouTubeFlow: React.FC<YouTubeFlowProps> = ({ data, originalUrl }) => {
 
                   <button 
                     onClick={() => setStep(3)}
-                    className="w-full bg-white text-black font-black py-4 rounded-xl text-[11px] flex items-center justify-center gap-2 hover:bg-blue-600 hover:text-white transition-all active:scale-95 shadow-lg uppercase tracking-widest"
+                    className="w-full bg-white text-black font-black py-4 rounded-xl text-[11px] flex items-center justify-center gap-2 hover:bg-blue-600 hover:text-white transition-all uppercase tracking-widest"
                   >
                     Continuar <ChevronRight className="w-3 h-3" />
                   </button>
                 </div>
               )}
 
-              {/* PASO 3: Descarga */}
+              {/* PASO 3: Finalizar */}
               {step === 3 && (
                 <div className="space-y-6 animate-in zoom-in-95 duration-300 text-center lg:text-left">
                   <div className="space-y-2">
@@ -182,14 +185,13 @@ const YouTubeFlow: React.FC<YouTubeFlowProps> = ({ data, originalUrl }) => {
 
                   <button 
                     onClick={handleDownload}
-                    className="w-full group bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-[0_10px_20px_rgba(37,99,235,0.2)] active:scale-95"
+                    className="w-full group bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-xl active:scale-95"
                   >
                     <Download className="w-5 h-5 group-hover:animate-bounce" />
                     <span className="text-[11px] tracking-widest font-black uppercase">Descargar ahora</span>
                   </button>
                 </div>
               )}
-
             </div>
           </div>
         </div>

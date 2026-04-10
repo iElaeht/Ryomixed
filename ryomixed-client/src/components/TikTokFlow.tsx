@@ -1,4 +1,3 @@
-// ryomixed-client/src/components/TikTokFlow.tsx
 import React, { useState } from 'react';
 import { Download, Music, CheckCircle2, User, ChevronLeft, Loader2 } from 'lucide-react';
 
@@ -9,7 +8,7 @@ interface TikTokFlowProps {
     sanitizedTitle: string;
     author: string;
     thumbnail: string;
-    urls: string[];
+    urls: string[]; // En video, el primer elemento es el link directo
     audioUrl?: string;
   };
 }
@@ -29,46 +28,32 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data }) => {
     );
   };
 
-  const handleDownload = async (mode: 'video' | 'audio' | 'zip' | 'single') => {
+const handleDownload = async (mode: 'video' | 'audio' | 'single' | 'photos') => {
     const baseUrl = 'http://localhost:4000/api/tiktok/download';
-    let realContentUrl = '';
-    let downloadType = '';
+    
+    let targetUrl = data.urls[0]; 
+    let downloadType: string = mode;
 
-    if (mode === 'video') {
-      realContentUrl = data.urls[0];
-      downloadType = 'video';
-    } else if (mode === 'audio') {
-      realContentUrl = data.audioUrl || '';
-      downloadType = 'audio';
+    if (mode === 'audio' && data.audioUrl) {
+      targetUrl = data.audioUrl;
     } else if (mode === 'single' && isPhotos) {
-      realContentUrl = data.urls[selectedImages[0]];
+      targetUrl = data.urls[selectedImages[0]];
       downloadType = 'photos';
-    } else if (mode === 'zip') {
-      alert("La función ZIP se activará en la próxima actualización del backend.");
-      return;
     }
-
-    if (!realContentUrl) return;
 
     setDownloading(true);
 
     try {
-      // Construimos la URL con los parámetros necesarios
       const params = new URLSearchParams({
-        url: realContentUrl,
+        url: targetUrl,
         title: data.sanitizedTitle,
         type: downloadType
       });
 
-      /**
-       * SOLUCIÓN PARA DESCARGAR EN LA MISMA PESTAÑA:
-       * Creamos un enlace invisible, le asignamos la URL de nuestra API
-       * y simulamos un clic. Al ser una respuesta con 'Content-Disposition: attachment',
-       * el navegador simplemente descarga el archivo sin navegar fuera.
-       */
+      // Método de descarga invisible para no recargar la SPA
       const link = document.createElement('a');
       link.href = `${baseUrl}?${params.toString()}`;
-      link.setAttribute('download', ''); // Esto refuerza la intención de descarga
+      link.setAttribute('download', `${data.sanitizedTitle}.${mode === 'audio' ? 'mp3' : 'mp4'}`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -77,7 +62,6 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data }) => {
       console.error("Error en la descarga:", error);
       alert("Hubo un fallo al procesar la descarga.");
     } finally {
-      // Simulamos un pequeño delay para que el usuario sienta que algo pasó
       setTimeout(() => setDownloading(false), 2000);
     }
   };
@@ -86,7 +70,7 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data }) => {
     <div className="w-full max-w-5xl bg-[#0a0f1a]/80 backdrop-blur-2xl border border-white/5 rounded-[2.5rem] p-6 md:p-8 animate-in fade-in zoom-in-95 duration-500 shadow-2xl">
       <div className="flex flex-col lg:flex-row gap-12 items-center lg:items-stretch">
         
-        {/* LADO IZQUIERDO: PREVIEW FIJA */}
+        {/* LADO IZQUIERDO: PREVIEW */}
         <div className="flex flex-col gap-4 w-full lg:w-72 shrink-0">
           <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black/40 aspect-video shadow-inner">
             <img 
@@ -94,10 +78,6 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data }) => {
               alt={data.title} 
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer" 
-              loading="lazy"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://via.placeholder.com/640x360.png?text=Error+al+cargar+miniatura';
-              }}
             />
             {isPhotos && (
               <div className="absolute top-2 right-2 bg-pink-600 px-2 py-0.5 rounded-lg text-[10px] font-black text-white shadow-xl">
@@ -117,7 +97,7 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data }) => {
           </div>
         </div>
 
-        {/* LADO DERECHO: INTERFAZ DINÁMICA */}
+        {/* LADO DERECHO: INTERFAZ */}
         <div className="flex-grow flex flex-col min-h-[300px] w-full text-left">
           
           <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-4">
@@ -150,7 +130,7 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data }) => {
                             selectedImages.includes(index) ? 'border-pink-500 scale-95' : 'border-transparent opacity-50'
                           }`}
                         >
-                          <img src={url} alt="" className="w-full h-16 object-cover" referrerPolicy="no-referrer" loading="lazy" />
+                          <img src={url} alt="" className="w-full h-16 object-cover" referrerPolicy="no-referrer" />
                           {selectedImages.includes(index) && (
                             <div className="absolute inset-0 bg-pink-500/20 flex items-center justify-center">
                               <CheckCircle2 className="w-5 h-5 text-white" />
@@ -162,7 +142,7 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data }) => {
                     <button 
                       disabled={selectedImages.length === 0}
                       onClick={() => setStep(2)}
-                      className="w-full max-w-sm bg-white text-black font-black py-3 rounded-xl text-[10px] tracking-[0.2em] uppercase hover:bg-pink-600 hover:text-white transition-all active:scale-95 disabled:opacity-30"
+                      className="w-full max-w-sm bg-white text-black font-black py-3 rounded-xl text-[10px] tracking-[0.2em] uppercase hover:bg-pink-600 hover:text-white transition-all disabled:opacity-30"
                     >
                       Continuar con {selectedImages.length} items
                     </button>
@@ -171,7 +151,7 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data }) => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-sm w-full">
                     <button 
                       onClick={() => setStep(2)}
-                      className="group flex flex-col items-center gap-3 p-5 rounded-3xl border border-white/5 bg-white/5 hover:bg-pink-600/20 hover:border-pink-500/50 transition-all active:scale-95"
+                      className="group flex flex-col items-center gap-3 p-5 rounded-3xl border border-white/5 bg-white/5 hover:bg-pink-600/20 hover:border-pink-500/50 transition-all"
                     >
                       <Download className="w-8 h-8 text-pink-500" />
                       <span className="text-[9px] font-black tracking-widest uppercase">Video Sin Marca</span>
@@ -179,7 +159,7 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data }) => {
                     <button 
                       onClick={() => handleDownload('audio')}
                       disabled={downloading}
-                      className="group flex flex-col items-center gap-3 p-5 rounded-3xl border border-white/5 bg-white/5 hover:bg-blue-600/20 hover:border-blue-500/50 transition-all active:scale-95 disabled:opacity-50"
+                      className="group flex flex-col items-center gap-3 p-5 rounded-3xl border border-white/5 bg-white/5 hover:bg-blue-600/20 hover:border-blue-500/50 transition-all disabled:opacity-50"
                     >
                       {downloading ? <Loader2 className="w-8 h-8 text-blue-500 animate-spin" /> : <Music className="w-8 h-8 text-blue-500" />}
                       <span className="text-[9px] font-black tracking-widest uppercase">Solo Audio MP3</span>
@@ -200,8 +180,8 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data }) => {
                 </div>
                 <button 
                   disabled={downloading}
-                  onClick={() => handleDownload(isPhotos ? (selectedImages.length > 1 ? 'zip' : 'single') : 'video')}
-                  className="w-full bg-pink-600 hover:bg-pink-500 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all text-[11px] tracking-widest uppercase disabled:bg-gray-800 disabled:text-gray-500"
+                  onClick={() => handleDownload(isPhotos ? 'single' : 'video')}
+                  className="w-full bg-pink-600 hover:bg-pink-500 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all text-[11px] tracking-widest uppercase disabled:bg-gray-800"
                 >
                   {downloading ? (
                     <Loader2 className="w-5 h-5 animate-spin" />

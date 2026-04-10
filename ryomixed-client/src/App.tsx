@@ -6,9 +6,11 @@ import YouTubeFlow from './components/YouTubeFlow';
 import TikTokFlow from './components/TikTokFlow';
 import { Search, Loader2, ClipboardPaste } from 'lucide-react';
 
-// Interfaz alineada con la estructura del Backend
+// 1. Definimos las interfaces exactas para evitar el error de la imagen 2
+type TikTokType = 'video' | 'photos';
+
 interface RyoData {
-  type: 'video' | 'photos';
+  type: 'youtube' | TikTokType; // Aquí unificamos los tipos
   title: string;
   sanitizedTitle: string;
   author: string;
@@ -25,7 +27,6 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
 
-  // Seguridad: Bloqueo de inspección para proteger el proyecto AI Mangas
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -56,19 +57,18 @@ function App() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Limpieza de URL: extrae solo el enlace si hay texto extra
     const cleanUrl = url.trim().split(/\s+/).find(part => part.includes('http'));
     if (!cleanUrl) return;
 
     setLoading(true);
-    setVideoData(null); // Reset visual para evitar persistencia de datos previos
+    setVideoData(null); 
 
     try {
       const isYouTube = cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be');
       const endpoint = isYouTube ? '/api/youtube/info' : '/api/tiktok/info';
-      
-      const response = await fetch(`http://localhost:4000${endpoint}`, {
+      const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:4000' : '';
+
+      const response = await fetch(`${baseUrl}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: cleanUrl })
@@ -81,92 +81,95 @@ function App() {
       
       const responseData = await response.json();
       
-      // Verificación de la propiedad 'data' que viene del backend
       if (responseData.success && responseData.data) {
         const info = responseData.data;
-
+        
+        // 2. Construcción segura del objeto para que TypeScript no se queje
         const finalData: RyoData = {
-          type: info.type || 'video',
+          type: isYouTube ? 'youtube' : (info.type as TikTokType || 'video'),
           title: info.title || "Sin título",
-          sanitizedTitle: info.sanitizedTitle || info.title || "AI_Mangas_Media",
-          author: info.author || "Desconocido",
+          sanitizedTitle: info.sanitizedTitle || info.title || "Ryomixed_Media",
+          author: info.author || "Creador",
           thumbnail: info.thumbnail || "",
           urls: info.urls || [],
           audioUrl: info.audioUrl,
           duration: info.duration,
           formats: info.formats
         };
-
         setVideoData(finalData);
       } else {
-        throw new Error("No se pudo obtener información válida del enlace.");
+        throw new Error("El servidor no devolvió datos válidos.");
       }
-
     } catch (error: unknown) {
-      console.error("Search Error:", error);
-      if (error instanceof Error) alert(error.message);
-      else alert("No se pudo conectar con el servidor.");
+      const msg = error instanceof Error ? error.message : "Error de conexión";
+      alert(msg);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#0a0f1a] text-white selection:bg-blue-500/30 transition-colors duration-500">
-      
+    <div className="flex flex-col min-h-screen bg-[#0a0f1a] text-white selection:bg-blue-500/30">
       <Nav onOpenAbout={() => setIsAboutOpen(true)} />
-
-      <main className="flex-grow flex flex-col items-center px-4 pt-10 pb-10 md:pt-16 md:pb-20">
+      
+      <main className="flex-grow flex flex-col items-center px-4 pt-10 pb-10">
         <div className="w-full max-w-4xl text-center flex flex-col items-center">
           
-          <div className="space-y-6 mb-10">
-            <h1 className="text-5xl md:text-7xl font-black tracking-tighter leading-tight animate-in fade-in slide-in-from-bottom-4 duration-1000">
+          <div className="space-y-6 mb-12 animate-in fade-in slide-in-from-top-4 duration-700">
+             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[10px] font-black uppercase tracking-[0.3em] text-blue-400">
+              <Sparkles className="w-3 h-3" /> Multi-Platform Support
+            </div>
+            <h1 className="text-5xl md:text-7xl font-black tracking-tighter leading-tight">
               Tus momentos, <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-blue-200 to-cyan-300">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-300 to-blue-500">
                 en tus manos.
               </span>
             </h1>
           </div>
 
-          <form onSubmit={handleSearch} className="w-full max-w-2xl relative group mb-8">
-            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-blue-400/50 group-focus-within:text-blue-400 transition-colors">
-              <Search className="w-6 h-6" />
-            </div>
+          <form onSubmit={handleSearch} className="w-full max-w-3xl group relative mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-150">
+            <div className="absolute -inset-1 bg-gradient-to-r from-blue-600/20 to-cyan-500/20 rounded-[2.2rem] blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
             
-            <input 
-              type="text"
-              placeholder="Pega el link de YouTube o TikTok..."
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              className="w-full bg-blue-950/20 border border-blue-900/30 rounded-2xl py-5 px-6 pl-14 pr-[180px] text-white placeholder:text-blue-300/20 focus:outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all text-lg shadow-[0_0_30px_rgba(0,0,0,0.3)]"
-            />
+            <div className="relative flex items-center bg-blue-950/20 backdrop-blur-md border border-white/5 rounded-[2rem] p-2 pr-3 shadow-2xl overflow-hidden">
+              <div className="pl-5 text-blue-400/50 hidden md:block">
+                <Search className="w-6 h-6" />
+              </div>
+              
+              <input 
+                type="text"
+                placeholder="Pega el link de YouTube o TikTok..."
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                className="flex-grow bg-transparent border-none focus:ring-0 text-white placeholder:text-gray-600 font-medium py-5 px-4 text-base md:text-lg outline-none"
+              />
+              
+              <div className="flex items-center gap-2">
+                <button 
+                  type="button" 
+                  onClick={handlePaste} 
+                  className="flex items-center gap-2 px-4 py-3 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/10 text-blue-400 transition-all active:scale-95 group/btn"
+                >
+                  <ClipboardPaste className="w-5 h-5 group-hover/btn:scale-110 transition-transform" />
+                  <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">Pegar</span>
+                </button>
 
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
-              <button 
-                type="button"
-                onClick={handlePaste}
-                className="p-2.5 rounded-xl bg-blue-900/20 hover:bg-blue-900/40 text-blue-300/50 hover:text-blue-100 transition-all active:scale-95 border border-blue-800/20"
-                title="Pegar enlace"
-              >
-                <ClipboardPaste className="w-5 h-5" />
-              </button>
-
-              <button 
-                type="submit"
-                disabled={loading || !url}
-                className="bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-600/20 disabled:bg-gray-800 disabled:text-gray-500 text-white px-6 py-2.5 rounded-xl font-bold transition-all active:scale-95 flex items-center gap-2"
-              >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Buscar'}
-              </button>
+                <button 
+                  type="submit" 
+                  disabled={loading || !url} 
+                  className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-6 md:px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all active:scale-95"
+                >
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Buscar'}
+                </button>
+              </div>
             </div>
           </form>
 
-          {/* Área de resultados: Renderiza el Flow correspondiente según la URL */}
-          <div className="w-full mt-4 flex justify-center">
+          {/* Área de Resultados - AQUÍ SE ELIMINA EL ERROR DE LA IMAGEN 3 */}
+          <div className="w-full mt-4 flex justify-center pb-20">
             {videoData && (
-              url.toLowerCase().includes('youtube') || url.toLowerCase().includes('youtu.be')
+              videoData.type === 'youtube' 
                 ? <YouTubeFlow data={videoData} originalUrl={url} />
-                : <TikTokFlow data={videoData} />
+                : <TikTokFlow data={videoData as { type: TikTokType; title: string; sanitizedTitle: string; author: string; thumbnail: string; urls: string[]; audioUrl?: string; }} />
             )}
           </div>
         </div>
@@ -177,5 +180,11 @@ function App() {
     </div>
   );
 }
+
+const Sparkles = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.286-6.857L1 12l7.714-2.143L11 3z" />
+  </svg>
+);
 
 export default App;
