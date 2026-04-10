@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/ryomixed-server/index.js"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/ryomixed-client/$1"
+    }
+  ]
+}
