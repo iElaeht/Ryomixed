@@ -35,25 +35,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
 
-  // --- BLOQUEO DE HERRAMIENTAS DESHABILITADO PARA DEBUG ---
+  // --- MODO DEBUG ACTIVADO ---
   useEffect(() => {
-    /* const handleContextMenu = (e: MouseEvent) => e.preventDefault();
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.key === 'F12' ||
-        (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
-        (e.ctrlKey && e.key === 'U')
-      ) {
-        e.preventDefault();
-      }
-    };
-    document.addEventListener('contextmenu', handleContextMenu);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('contextmenu', handleContextMenu);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-    */
     console.log("🛠️ Modo Debug: Herramientas de desarrollador habilitadas.");
   }, []);
 
@@ -68,11 +51,26 @@ function App() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanUrl = url.trim().split(/\s+/).find(part => part.includes('http'));
+    
+    // 1. Extraer la URL básica del texto
+    let cleanUrl = url.trim().split(/\s+/).find(part => part.includes('http'));
     
     if (!cleanUrl) {
       alert("Por favor, ingresa una URL válida.");
       return;
+    }
+
+    // 2. --- LIMPIEZA CRÍTICA PARA YOUTUBE ---
+    if (cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be')) {
+      try {
+        const urlObj = new URL(cleanUrl);
+        if (urlObj.searchParams.has('v')) {
+          cleanUrl = `${urlObj.origin}${urlObj.pathname}?v=${urlObj.searchParams.get('v')}`;
+        }
+      } catch {
+        // Eliminado 'err' para evitar el error de variable no usada
+        console.warn("No se pudo simplificar la URL de YouTube, se enviará original.");
+      }
     }
 
     setLoading(true);
@@ -82,8 +80,10 @@ function App() {
       const isYouTube = cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be');
       const endpoint = isYouTube ? '/api/youtube/info' : '/api/tiktok/info';
       
-      // Decidimos la URL según el entorno
       const baseUrl = window.location.hostname === 'localhost' ? LOCAL_URL : RENDER_URL;
+
+      console.log(`🚀 Enviando petición a: ${baseUrl}${endpoint}`);
+      console.log(`📦 Body:`, { url: cleanUrl });
 
       const response = await fetch(`${baseUrl}${endpoint}`, {
         method: 'POST',
@@ -93,10 +93,12 @@ function App() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error("❌ Error del servidor:", errorData);
         throw new Error(errorData.message || 'Error en el servidor');
       }
       
       const responseData = await response.json();
+      console.log("✅ Datos recibidos:", responseData);
       
       if (responseData.success && responseData.data) {
         const info = responseData.data;
@@ -119,7 +121,7 @@ function App() {
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : "Error de conexión con RyoMixed";
       alert(msg);
-      console.error("Detalle del error:", error); // Esto ahora sí lo podrás ver en la consola
+      console.error("🔴 Detalle completo del error:", error);
     } finally {
       setLoading(false);
     }
