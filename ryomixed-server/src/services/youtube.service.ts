@@ -7,12 +7,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootPath = path.resolve(__dirname, '../../');
 const cookiesPath = path.join(rootPath, 'cookies.txt');
-const binPath = path.join(rootPath, 'node_modules', 'youtube-dl-exec', 'bin', 'yt-dlp.exe');
+
+// --- CORRECCIÓN DE BINARIO (WINDOWS vs LINUX) ---
+const isWindows = process.platform === 'win32';
+const binName = isWindows ? 'yt-dlp.exe' : 'yt-dlp';
+const binPath = path.join(rootPath, 'node_modules', 'youtube-dl-exec', 'bin', binName);
 
 const ytdl = create(binPath);
 
 export class YouTubeService {
-    // Tu lógica de limpieza de títulos rescatada
     private sanitize(title: string): string {
         return title.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
     }
@@ -23,41 +26,51 @@ export class YouTubeService {
             noCheckCertificates: true,
             noWarnings: true,
             noPlaylist: true,
-            addHeader: ['Accept-Language: es-ES,es;q=0.9']
+            addHeader: [
+                'Accept-Language: es-ES,es;q=0.9',
+                'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            ],
+            // Forzar IPv4 es vital en Render para evitar bloqueos
+            forceIpv4: true 
         };
 
         if (fs.existsSync(cookiesPath)) options.cookies = cookiesPath;
 
-        const output: any = await ytdl(url, options);
+        try {
+            const output: any = await ytdl(url, options);
 
-        // Rescatamos y mejoramos tu lógica de filtrado de formatos
-        const formats = (output.formats || [])
-            .filter((f: any) => f.vcodec !== 'none' && f.ext === 'mp4')
-            .map((f: any) => ({
-                id: f.format_id,
-                label: f.format_note || f.resolution || 'Calidad estándar',
-                ext: f.ext
-            }))
-            // Eliminamos duplicados de etiquetas (ej: varias de 1080p)
-            .filter((v: any, i: any, a: any) => a.findIndex((t: any) => t.label === v.label) === i);
+            const formats = (output.formats || [])
+                .filter((f: any) => f.vcodec !== 'none' && f.ext === 'mp4')
+                .map((f: any) => ({
+                    id: f.format_id,
+                    label: f.format_note || f.resolution || 'Calidad estándar',
+                    ext: f.ext
+                }))
+                .filter((v: any, i: any, a: any) => a.findIndex((t: any) => t.label === v.label) === i);
 
-        return {
-            type: 'youtube',
-            title: output.title,
-            sanitizedTitle: this.sanitize(output.title || "RyoMixed_Video"),
-            author: output.uploader || 'Canal',
-            thumbnail: output.thumbnail || "",
-            duration: output.duration || 0,
-            formats: formats
-        };
+            return {
+                type: 'youtube',
+                title: output.title,
+                sanitizedTitle: this.sanitize(output.title || "RyoMixed_Video"),
+                author: output.uploader || 'Canal',
+                thumbnail: output.thumbnail || "",
+                duration: output.duration || 0,
+                formats: formats
+            };
+        } catch (error: any) {
+            console.error("🔴 Error en yt-dlp:", error.message);
+            throw error;
+        }
     }
 
-    // Lógica de descarga rescatada y blindada
+    // No olvides aplicar también el 'forceIpv4' en execDownload si sigue fallando
     async execDownload(url: string, formatId: string, res: any) {
         const options: any = {
             output: '-',
             noCheckCertificates: true,
             noPlaylist: true,
+            forceIpv4: true, // Añadido para la descarga
+            addHeader: ['user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36']
         };
 
         if (fs.existsSync(cookiesPath)) options.cookies = cookiesPath;
@@ -67,7 +80,6 @@ export class YouTubeService {
             options.audioFormat = 'mp3';
             options.format = 'bestaudio/best';
         } else {
-            // "formatId" aquí es el ID que el usuario eligió en el frontend
             options.format = `${formatId}+bestaudio[ext=m4a]/best`;
         }
 
