@@ -2,6 +2,7 @@ import { create } from 'youtube-dl-exec';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { Buffer } from 'buffer'; // Necesario para procesar el Base64
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,6 +17,31 @@ const binPath = path.join(rootPath, 'node_modules', 'youtube-dl-exec', 'bin', bi
 const ytdl = create(binPath);
 
 export class YouTubeService {
+    // El constructor se ejecuta apenas el servidor instancia el servicio
+    constructor() {
+        this.initializeCookies();
+    }
+
+    private initializeCookies() {
+        // Verificamos si existe la variable que pusiste en el panel de Render
+        const base64Cookies = process.env.YOUTUBE_COOKIES_BASE64;
+        
+        if (base64Cookies) {
+            try {
+                // Decodificamos la cadena Base64 a texto plano (formato cookies.txt)
+                const decodedCookies = Buffer.from(base64Cookies, 'base64').toString('utf-8');
+                
+                // Escribimos el archivo físicamente en el contenedor de Render
+                fs.writeFileSync(cookiesPath, decodedCookies);
+                console.log("🍪 [YouTubeService] Cookies recreadas exitosamente desde el entorno.");
+            } catch (error) {
+                console.error("❌ [YouTubeService] Error al decodificar YOUTUBE_COOKIES_BASE64:", error);
+            }
+        } else {
+            console.warn("⚠️ [YouTubeService] No se encontró YOUTUBE_COOKIES_BASE64. El servidor podría ser detectado como bot.");
+        }
+    }
+
     private sanitize(title: string): string {
         return title.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
     }
@@ -28,13 +54,15 @@ export class YouTubeService {
             noPlaylist: true,
             addHeader: [
                 'Accept-Language: es-ES,es;q=0.9',
-                'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
             ],
-            // Forzar IPv4 es vital en Render para evitar bloqueos
             forceIpv4: true 
         };
 
-        if (fs.existsSync(cookiesPath)) options.cookies = cookiesPath;
+        // Si el archivo cookies.txt fue creado por el constructor, lo inyectamos aquí
+        if (fs.existsSync(cookiesPath)) {
+            options.cookies = cookiesPath;
+        }
 
         try {
             const output: any = await ytdl(url, options);
@@ -63,17 +91,18 @@ export class YouTubeService {
         }
     }
 
-    // No olvides aplicar también el 'forceIpv4' en execDownload si sigue fallando
     async execDownload(url: string, formatId: string, res: any) {
         const options: any = {
             output: '-',
             noCheckCertificates: true,
             noPlaylist: true,
-            forceIpv4: true, // Añadido para la descarga
-            addHeader: ['user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36']
+            forceIpv4: true,
+            addHeader: ['user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36']
         };
 
-        if (fs.existsSync(cookiesPath)) options.cookies = cookiesPath;
+        if (fs.existsSync(cookiesPath)) {
+            options.cookies = cookiesPath;
+        }
 
         if (formatId === 'mp3') {
             options.extractAudio = true;
