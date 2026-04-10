@@ -13,7 +13,6 @@ const LOCAL_URL = 'http://localhost:4000';
 // --- INTERFACES ---
 type TikTokType = 'video' | 'photos';
 
-// Definimos la interfaz que espera el componente TikTokFlow para evitar el 'any'
 interface TikTokData {
   type: TikTokType;
   title: string;
@@ -36,8 +35,9 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
 
+  // --- BLOQUEO DE HERRAMIENTAS DESHABILITADO PARA DEBUG ---
   useEffect(() => {
-    const handleContextMenu = (e: MouseEvent) => e.preventDefault();
+    /* const handleContextMenu = (e: MouseEvent) => e.preventDefault();
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
         e.key === 'F12' ||
@@ -53,6 +53,8 @@ function App() {
       document.removeEventListener('contextmenu', handleContextMenu);
       document.removeEventListener('keydown', handleKeyDown);
     };
+    */
+    console.log("🛠️ Modo Debug: Herramientas de desarrollador habilitadas.");
   }, []);
 
   const handlePaste = async () => {
@@ -79,6 +81,8 @@ function App() {
     try {
       const isYouTube = cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be');
       const endpoint = isYouTube ? '/api/youtube/info' : '/api/tiktok/info';
+      
+      // Decidimos la URL según el entorno
       const baseUrl = window.location.hostname === 'localhost' ? LOCAL_URL : RENDER_URL;
 
       const response = await fetch(`${baseUrl}${endpoint}`, {
@@ -115,6 +119,7 @@ function App() {
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : "Error de conexión con RyoMixed";
       alert(msg);
+      console.error("Detalle del error:", error); // Esto ahora sí lo podrás ver en la consola
     } finally {
       setLoading(false);
     }
