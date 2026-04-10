@@ -29,10 +29,15 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data }) => {
   };
 
 const handleDownload = async (mode: 'video' | 'audio' | 'single' | 'photos') => {
-    const baseUrl = 'http://localhost:4000/api/tiktok/download';
+    // ESTA LÓGICA DETECTA SI ESTÁS EN TU PC O EN LA NUBE
+    const baseUrlApi = window.location.hostname === 'localhost' 
+      ? 'http://localhost:4000' 
+      : 'https://tu-url-de-render.onrender.com';
+
+    const downloadEndpoint = `${baseUrlApi}/api/tiktok/download`;
     
     let targetUrl = data.urls[0]; 
-    let downloadType: string = mode;
+    let downloadType: 'video' | 'audio' | 'single' | 'photos' = mode;
 
     if (mode === 'audio' && data.audioUrl) {
       targetUrl = data.audioUrl;
@@ -50,9 +55,8 @@ const handleDownload = async (mode: 'video' | 'audio' | 'single' | 'photos') => 
         type: downloadType
       });
 
-      // Método de descarga invisible para no recargar la SPA
       const link = document.createElement('a');
-      link.href = `${baseUrl}?${params.toString()}`;
+      link.href = `${downloadEndpoint}?${params.toString()}`;
       link.setAttribute('download', `${data.sanitizedTitle}.${mode === 'audio' ? 'mp3' : 'mp4'}`);
       document.body.appendChild(link);
       link.click();
