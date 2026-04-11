@@ -2,12 +2,20 @@ import { Router } from 'express';
 import { YouTubeController } from '../controllers/youtube.controller.js';
 
 const router = Router();
-const ytController = new YouTubeController();
+const youtubeController = new YouTubeController();
 
-// POST para obtener info (evita problemas de longitud de URL en GET)
-router.post('/info', (req, res) => ytController.getInfo(req, res));
+/**
+ * RUTA: POST /api/youtube/info
+ * DESCRIPCIÓN: Recibe una URL y devuelve los metadatos (título, duración, calidades).
+ * DETALLE: Es el primer paso cuando el usuario hace clic en "Buscar".
+ */
+router.post('/info', (req, res) => youtubeController.getInfo(req, res));
 
-// GET para la descarga (permite que el navegador maneje el stream)
-router.get('/download', (req, res) => ytController.download(req, res));
+/**
+ * RUTA: POST /api/youtube/download
+ * DESCRIPCIÓN: Inicia el flujo de descarga de video o audio MP3.
+ * DETALLE: Se dispara cuando el usuario hace clic en "Continuar a descarga".
+ */
+router.post('/download', (req, res) => youtubeController.download(req, res));
 
 export default router;

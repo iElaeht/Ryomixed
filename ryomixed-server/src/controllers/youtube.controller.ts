@@ -1,40 +1,73 @@
-import type { Request, Response } from 'express';
+import { Request, Response } from 'express';
 import { YouTubeService } from '../services/youtube.service.js';
 
-const ytService = new YouTubeService();
+const youtubeService = new YouTubeService();
 
 export class YouTubeController {
     async getInfo(req: Request, res: Response) {
         try {
             const { url } = req.body;
-            if (!url) return res.status(400).json({ success: false, message: "URL requerida" });
+            if (!url) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "La URL es obligatoria." 
+                });
+            }
 
-            const info = await ytService.getInfo(url);
-            res.json({ success: true, data: info });
+            const data = await youtubeService.getInfo(url);
+            // Mantenemos el formato de respuesta que tu Frontend espera para la vista
+            return res.json({ success: true, data });
+
         } catch (error: any) {
-            console.error("❌ [YT Controller Error]:", error.message);
-            res.status(400).json({ success: false, message: error.message });
+            console.error("🔴 [Controller GetInfo Error]:", error.message);
+            return res.status(500).json({ 
+                success: false, 
+                message: error.message || "Error al obtener info." 
+            });
         }
     }
 
     async download(req: Request, res: Response) {
+        const { url, formatId, title, type } = req.body;
+
         try {
-            const { url, format, title } = req.query;
-            if (!url) return res.status(400).send("Falta la URL");
+            if (!url || !formatId) {
+                return res.status(400).send("Faltan parámetros críticos.");
+            }
 
-            const isAudio = format === 'mp3';
-            const ext = isAudio ? 'mp3' : 'mp4';
-            
-            // Sanitización para el header de descarga
-            const safeTitle = String(title || 'RyoMixed_Video').replace(/[^a-zA-Z0-9]/g, '_');
+            const isMp3 = type === 'audio' || formatId === 'mp3';
+            const fileName = `${title || 'RyoMixed_Media'}.${isMp3 ? 'mp3' : 'mp4'}`;
 
-            res.setHeader('Content-Type', isAudio ? 'audio/mpeg' : 'video/mp4');
-            res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}.${ext}"`);
+            /**
+             * LÓGICA DE CABECERAS (HÍBRIDA):
+             * Solo configuramos cabeceras manualmente si es MP3 (Streaming directo).
+             * Si es MP4, el Service usará res.download() que gestiona sus propias cabeceras.
+             */
+            if (isMp3) {
+                res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+                res.setHeader('Content-Type', 'audio/mpeg');
+                res.setHeader('Transfer-Encoding', 'chunked');
+            }
 
-            await ytService.execDownload(url as string, format as string, res);
+            // Llamamos al Service
+            const subprocess = await youtubeService.execDownload(url, formatId, res);
+
+            /**
+             * LIMPIEZA DE PROCESOS:
+             * Vital para tu hardware. Si el usuario cierra la conexión, matamos el proceso.
+             */
+            req.on('close', () => {
+                if (subprocess && typeof subprocess.kill === 'function') {
+                    console.log(`⚠️ Conexión cerrada. Deteniendo motor RyoMixed para: ${fileName}`);
+                    subprocess.kill(); 
+                }
+            });
+
         } catch (error: any) {
-            console.error("❌ [YT Download Error]:", error.message);
-            if (!res.headersSent) res.status(500).send("Error procesando la descarga");
+            console.error("🔴 [Controller Download Error]:", error);
+            if (!res.headersSent) {
+                res.status(500).send("Error crítico en el flujo de descarga.");
+            }
         }
     }
 }

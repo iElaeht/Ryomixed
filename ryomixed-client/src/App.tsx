@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import Nav from './components/ui/Navbar';
 import Footer from './components/ui/Footer';
 import ModalAbout from './components/ui/ModalAbout';
@@ -6,122 +6,113 @@ import YouTubeFlow from './components/YouTubeFlow';
 import TikTokFlow from './components/TikTokFlow';
 import { Search, Loader2, ClipboardPaste, Sparkles } from 'lucide-react';
 
-// --- CONFIGURACIÓN DE URL ---
+// --- CONFIGURACIÓN ---
 const RENDER_URL = 'https://ryomixed.onrender.com';
 const LOCAL_URL = 'http://localhost:4000';
 
-// --- INTERFACES ---
-type TikTokType = 'video' | 'photos';
+// --- INTERFACES (Sincronizadas con YouTubeFlow) ---
+interface YouTubeData {
+  type: 'youtube';
+  title: string;
+  sanitizedTitle: string; 
+  author: string;
+  thumbnail: string;
+  duration: number; 
+  formats: Array<{ id: string; label: string; ext: string; filesize?: string }>;
+}
 
 interface TikTokData {
-  type: TikTokType;
+  type: 'video' | 'photos';
   title: string;
-  sanitizedTitle: string;
+  sanitizedTitle: string; 
   author: string;
   thumbnail: string;
   urls: string[];
   audioUrl?: string;
 }
 
-interface RyoData extends Omit<TikTokData, 'type'> {
-  type: 'youtube' | TikTokType;
-  duration?: number;
-  formats?: Array<{ id: string; label: string; ext: string }>;
-}
+type RyoData = YouTubeData | TikTokData;
 
 function App() {
   const [url, setUrl] = useState('');
+  const [activeUrl, setActiveUrl] = useState(''); 
   const [videoData, setVideoData] = useState<RyoData | null>(null);
   const [loading, setLoading] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
 
-  // --- MODO DEBUG ACTIVADO ---
-  useEffect(() => {
-    console.log("🛠️ Modo Debug: Herramientas de desarrollador habilitadas.");
-  }, []);
+  // Determinar la base de la API automáticamente
+  const apiBaseUrl = useMemo(() => 
+    window.location.hostname === 'localhost' ? LOCAL_URL : RENDER_URL
+  , []);
 
-  const handlePaste = async () => {
+  const handlePaste = useCallback(async () => {
     try {
       const text = await navigator.clipboard.readText();
       setUrl(text);
     } catch (err) {
-      console.error('Error al pegar:', err);
+      console.error('Error al acceder al portapapeles:', err);
     }
-  };
+  }, []);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // 1. Extraer la URL básica del texto
+    // 1. Limpieza de URL
     let cleanUrl = url.trim().split(/\s+/).find(part => part.includes('http'));
-    
-    if (!cleanUrl) {
-      alert("Por favor, ingresa una URL válida.");
-      return;
-    }
+    if (!cleanUrl) return;
 
-    // 2. --- LIMPIEZA CRÍTICA PARA YOUTUBE ---
-    if (cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be')) {
+    const isYouTube = cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be');
+    
+    // Normalización básica de YouTube
+    if (isYouTube) {
       try {
         const urlObj = new URL(cleanUrl);
         if (urlObj.searchParams.has('v')) {
           cleanUrl = `${urlObj.origin}${urlObj.pathname}?v=${urlObj.searchParams.get('v')}`;
         }
-      } catch {
-        // Eliminado 'err' para evitar el error de variable no usada
-        console.warn("No se pudo simplificar la URL de YouTube, se enviará original.");
-      }
+      } catch { /* URL no simplificable */ }
     }
 
     setLoading(true);
     setVideoData(null); 
+    setActiveUrl(cleanUrl); 
 
     try {
-      const isYouTube = cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be');
       const endpoint = isYouTube ? '/api/youtube/info' : '/api/tiktok/info';
-      
-      const baseUrl = window.location.hostname === 'localhost' ? LOCAL_URL : RENDER_URL;
 
-      console.log(`🚀 Enviando petición a: ${baseUrl}${endpoint}`);
-      console.log(`📦 Body:`, { url: cleanUrl });
-
-      const response = await fetch(`${baseUrl}${endpoint}`, {
+      const response = await fetch(`${apiBaseUrl}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: cleanUrl })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("❌ Error del servidor:", errorData);
-        throw new Error(errorData.message || 'Error en el servidor');
-      }
-      
       const responseData = await response.json();
-      console.log("✅ Datos recibidos:", responseData);
       
       if (responseData.success && responseData.data) {
         const info = responseData.data;
-        
-        const finalData: RyoData = {
-          type: isYouTube ? 'youtube' : (info.type as TikTokType || 'video'),
-          title: info.title || "Sin título",
-          sanitizedTitle: info.sanitizedTitle || info.title || "Ryomixed_Media",
-          author: info.author || "Creador",
-          thumbnail: info.thumbnail || "",
-          urls: info.urls || [],
-          audioUrl: info.audioUrl,
-          duration: info.duration,
-          formats: info.formats
-        };
-        setVideoData(finalData);
+
+        if (isYouTube) {
+          setVideoData({
+            type: 'youtube',
+            title: info.title,
+            sanitizedTitle: info.sanitizedTitle || info.title.replace(/[^\w\s]/gi, ''),
+            author: info.author,
+            thumbnail: info.thumbnail,
+            duration: info.duration || 0, 
+            formats: info.formats || []
+          });
+        } else {
+          setVideoData({
+            ...info,
+            sanitizedTitle: info.sanitizedTitle || info.title.replace(/[^\w\s]/gi, '')
+          });
+        }
       } else {
-        throw new Error("El servidor no devolvió datos válidos.");
+        throw new Error(responseData.message || "No se pudo obtener la información del video.");
       }
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : "Error de conexión con RyoMixed";
-      alert(msg);
-      console.error("🔴 Detalle completo del error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Error de conexión.";
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -134,9 +125,10 @@ function App() {
       <main className="flex-grow flex flex-col items-center px-4 pt-10 pb-10">
         <div className="w-full max-w-4xl text-center flex flex-col items-center">
           
+          {/* Header Hero */}
           <div className="space-y-6 mb-12 animate-in fade-in slide-in-from-top-4 duration-700">
              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[10px] font-black uppercase tracking-[0.3em] text-blue-400">
-              <Sparkles className="w-3 h-3" /> Multi-Platform Support
+              <Sparkles className="w-3 h-3" /> Motor yt-dlp v2026
             </div>
             <h1 className="text-5xl md:text-7xl font-black tracking-tighter leading-tight">
               Tus momentos, <br />
@@ -146,10 +138,11 @@ function App() {
             </h1>
           </div>
 
-          <form onSubmit={handleSearch} className="w-full max-w-3xl group relative mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-150">
-            <div className="absolute -inset-1 bg-gradient-to-r from-blue-600/20 to-cyan-500/20 rounded-[2.2rem] blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
+          {/* Buscador */}
+          <form onSubmit={handleSearch} className="w-full max-w-3xl group relative mb-12">
+            <div className="absolute -inset-1 bg-gradient-to-r from-blue-600/20 to-cyan-500/20 rounded-[2rem] blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
             
-            <div className="relative flex items-center bg-blue-950/20 backdrop-blur-md border border-white/5 rounded-[2rem] p-2 pr-3 shadow-2xl overflow-hidden">
+            <div className="relative flex items-center bg-blue-950/20 backdrop-blur-md border border-white/5 rounded-[2rem] p-2 pr-3 shadow-2xl transition-all group-focus-within:border-blue-500/50">
               <div className="pl-5 text-blue-400/50 hidden md:block">
                 <Search className="w-6 h-6" />
               </div>
@@ -174,8 +167,8 @@ function App() {
 
                 <button 
                   type="submit" 
-                  disabled={loading || !url} 
-                  className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-6 md:px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all active:scale-95"
+                  disabled={loading || !url.trim()} 
+                  className="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800/50 disabled:text-gray-500 px-6 md:px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all active:scale-95"
                 >
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Buscar'}
                 </button>
@@ -183,11 +176,14 @@ function App() {
             </div>
           </form>
 
+          {/* Renderizado de Flujos */}
           <div className="w-full mt-4 flex justify-center pb-20">
             {videoData && (
-              videoData.type === 'youtube' 
-                ? <YouTubeFlow data={videoData} originalUrl={url} />
-                : <TikTokFlow data={videoData as TikTokData} />
+              videoData.type === 'youtube' ? (
+                <YouTubeFlow data={videoData} originalUrl={activeUrl} />
+              ) : (
+                <TikTokFlow data={videoData} />
+              )
             )}
           </div>
         </div>

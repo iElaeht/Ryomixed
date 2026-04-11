@@ -1,206 +1,185 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+// Cambiamos 'Youtube' por 'Video' para evitar el error de exportación
 import { 
-  Download, Clock, User, ChevronLeft, ChevronRight, 
-  PlayCircle, Headphones, CheckCircle2, Settings2 
+  Download, 
+  Clock, 
+  Video, 
+  Loader2, 
+  CheckCircle2, 
+  Music 
 } from 'lucide-react';
 
+interface Format {
+  id: string;
+  label: string;
+  ext: string;
+  filesize?: string | null;
+}
+
+interface YouTubeData {
+  title: string;
+  sanitizedTitle: string;
+  author: string;
+  thumbnail: string;
+  duration: number;
+  formats: Format[];
+}
+
 interface YouTubeFlowProps {
-  data: {
-    title: string;
-    sanitizedTitle?: string;
-    author: string;
-    thumbnail: string;
-    duration?: number;
-    formats?: Array<{ id: string; label: string; ext: string }>;
-  };
+  data: YouTubeData;
   originalUrl: string;
 }
 
 const YouTubeFlow: React.FC<YouTubeFlowProps> = ({ data, originalUrl }) => {
-  const [step, setStep] = useState(1);
-  const [downloadType, setDownloadType] = useState<'mp4' | 'mp3' | null>(null);
-  const [selectedQualityId, setSelectedQualityId] = useState('');
+  const [activeTab, setActiveTab] = useState<'video' | 'audio'>('video');
+  const [selectedFormat, setSelectedFormat] = useState<string>(data.formats[0]?.id || '');
+  const [isDownloading, setIsDownloading] = useState(false);
+  
+  const videoBtnRef = useRef<HTMLButtonElement>(null);
+  const audioBtnRef = useRef<HTMLButtonElement>(null);
+  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
 
-  const formatDuration = (seconds?: number) => {
-    if (!seconds) return "0:00";
+  useEffect(() => {
+    const activeBtn = activeTab === 'video' ? videoBtnRef.current : audioBtnRef.current;
+    if (activeBtn) {
+      setIndicatorStyle({
+        left: activeBtn.offsetLeft,
+        width: activeBtn.offsetWidth
+      });
+    }
+  }, [activeTab]);
+
+  const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
+    const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleDownload = () => {
-    // --- CONFIGURACIÓN DE URL ---
-    const RENDER_URL = 'https://ryomixed.onrender.com';
-    const baseUrlApi = window.location.hostname === 'localhost' 
-      ? 'http://localhost:4000' 
-      : RENDER_URL;
+  const handleDownload = async () => {
+    // Verificación de seguridad para evitar el error 'trim' en el servidor
+    if (!originalUrl || isDownloading) return;
 
-    // Apuntamos a la ruta completa del servidor
-    const downloadEndpoint = `${baseUrlApi}/api/youtube/download`;
-    
-    // Si es MP3, enviamos 'mp3'. Si es video, el ID de calidad.
-    const finalFormat = downloadType === 'mp3' ? 'mp3' : selectedQualityId;
+    try {
+      setIsDownloading(true);
+      
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/youtube/download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: originalUrl.trim(), // Aseguramos que la URL viaje limpia
+          formatId: activeTab === 'audio' ? 'mp3' : selectedFormat,
+          title: data.sanitizedTitle,
+          type: activeTab
+        })
+      });
 
-    const params = new URLSearchParams({
-      url: originalUrl,
-      format: finalFormat, 
-      title: data.sanitizedTitle || data.title
-    });
+      if (!response.ok) throw new Error('Error en la descarga');
 
-    // Creamos el link temporal para iniciar la descarga
-    const link = document.createElement('a');
-    link.href = `${downloadEndpoint}?${params.toString()}`;
-    
-    // Agregamos al body, clickeamos y removemos
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.setAttribute('download', `${data.sanitizedTitle}.${activeTab === 'audio' ? 'mp3' : 'mp4'}`);
+      document.body.appendChild(link);
+      link.click();
+      
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+
+    } catch (error) {
+      console.error("Error de descarga:", error);
+      alert("No se pudo procesar la descarga.");
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
-    <div className="w-full max-w-5xl bg-[#0a0f1a]/80 backdrop-blur-2xl border border-white/5 rounded-[2.5rem] p-6 md:p-8 animate-in fade-in zoom-in-95 duration-500 shadow-2xl">
-      <div className="flex flex-col lg:flex-row gap-12 items-center lg:items-stretch">
-        
-        {/* LADO IZQUIERDO: PREVIEW */}
-        <div className="flex flex-col gap-4 w-full lg:w-72 shrink-0">
-          <div className="relative overflow-hidden rounded-2xl border border-white/5 bg-black/40">
-            <img 
-              src={data.thumbnail} 
-              alt={data.title} 
-              className="w-full aspect-video object-cover"
-              referrerPolicy="no-referrer"
-            />
-            <div className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-md px-2 py-0.5 rounded-lg flex items-center gap-1.5 border border-white/10">
-              <Clock className="w-3 h-3 text-blue-400" />
-              <span className="text-[10px] font-bold font-mono text-white/90">{formatDuration(data.duration)}</span>
-            </div>
-          </div>
+    <div className="w-full max-w-4xl bg-[#0d0d0d]/90 backdrop-blur-2xl border border-white/5 rounded-[2rem] overflow-hidden flex flex-col md:flex-row shadow-2xl animate-in fade-in duration-500">
+      
+      {/* LADO IZQUIERDO: Miniatura e Info */}
+      <div className="w-full md:w-1/2 p-6 flex flex-col gap-5 bg-gradient-to-b from-white/[0.02] to-transparent border-b md:border-b-0 md:border-r border-white/5">
+        <div className="relative group">
+          <img src={data.thumbnail} className="w-full aspect-video object-cover rounded-2xl shadow-2xl" alt="" />
           
-          <div className="space-y-1 px-1 text-left">
-            <h3 className="text-lg font-black text-white leading-tight tracking-tight line-clamp-2 italic uppercase">
-              {data.title}
-            </h3>
-            <div className="text-sm font-medium text-gray-400 flex items-center gap-2">
-              <User className="w-3 h-3 text-blue-500" />
-              <span className="opacity-60 uppercase tracking-widest text-[9px] font-black">{data.author}</span>
-            </div>
+          {/* Badge (Usamos Video en lugar de Youtube para evitar el error de Lucide) */}
+          <div className="absolute top-3 right-3 bg-red-600 px-2.5 py-1 rounded-md flex items-center gap-1.5 shadow-lg">
+            <Video className="w-3 h-3 text-white fill-current" />
+            <span className="text-[10px] font-black uppercase tracking-tighter text-white">LIVE</span>
+          </div>
+
+          <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10 flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5 text-blue-400" />
+            <span className="text-[11px] font-mono font-bold text-blue-400">{formatDuration(data.duration)}</span>
           </div>
         </div>
 
-        {/* LADO DERECHO: INTERFAZ */}
-        <div className="flex-grow flex flex-col min-h-[250px] w-full">
-          
-          <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-6">
-            <div className="flex items-center gap-3">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[9px] font-black text-white">
-                {step}
-              </span>
-              <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em]">
-                {step === 1 && "Formato"}
-                {step === 2 && "Calidad"}
-                {step === 3 && "Finalizar"}
-              </h4>
-            </div>
-            {step > 1 && (
-              <button 
-                onClick={() => setStep(step - 1)} 
-                className="text-gray-500 hover:text-white transition-colors text-[9px] font-black tracking-widest uppercase flex items-center gap-1"
-              >
-                <ChevronLeft className="w-3 h-3" /> Volver
-              </button>
+        <div className="px-2 text-left">
+          <h2 className="text-lg font-bold text-white/90 line-clamp-1 mb-1">{data.title}</h2>
+          <p className="text-xs text-blue-400/80 font-semibold uppercase tracking-wider">{data.author}</p>
+        </div>
+      </div>
+
+      {/* LADO DERECHO: Selector y Descarga */}
+      <div className="w-full md:w-1/2 p-8 flex flex-col justify-between bg-black/40">
+        <div>
+          <div className="relative flex gap-8 mb-8 border-b border-white/5 pb-3">
+            <button 
+              ref={videoBtnRef}
+              onClick={() => setActiveTab('video')}
+              className={`text-sm font-bold transition-all ${activeTab === 'video' ? 'text-white' : 'text-gray-500'}`}
+            >
+              Vídeo
+            </button>
+            <button 
+              ref={audioBtnRef}
+              onClick={() => setActiveTab('audio')}
+              className={`text-sm font-bold transition-all ${activeTab === 'audio' ? 'text-white' : 'text-gray-500'}`}
+            >
+              Audio MP3
+            </button>
+            <div 
+              className="absolute bottom-[-1px] h-[2px] bg-blue-500 transition-all duration-300 shadow-[0_0_8px_rgba(59,130,246,0.5)]"
+              style={{ left: indicatorStyle.left, width: indicatorStyle.width }}
+            />
+          </div>
+
+          <div className="space-y-1 overflow-y-auto max-h-[180px] pr-2 custom-scrollbar">
+            {activeTab === 'video' ? (
+              data.formats.map((f) => (
+                <div 
+                  key={f.id}
+                  onClick={() => setSelectedFormat(f.id)}
+                  className={`group flex items-center justify-between py-3 px-3 rounded-xl cursor-pointer transition-all ${selectedFormat === f.id ? 'bg-blue-500/10' : 'hover:bg-white/[0.02]'}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-1.5 h-1.5 rounded-full ${selectedFormat === f.id ? 'bg-blue-500' : 'bg-white/10'}`} />
+                    <span className={`text-sm font-medium ${selectedFormat === f.id ? 'text-white' : 'text-gray-500'}`}>
+                      {f.label} <span className="mx-2 text-white/5">•</span> 
+                      <span className="text-[10px] opacity-50">{f.filesize || 'Auto'}</span>
+                    </span>
+                  </div>
+                  {selectedFormat === f.id && <CheckCircle2 className="w-4 h-4 text-blue-500" />}
+                </div>
+              ))
+            ) : (
+              <div className="py-10 flex flex-col items-center justify-center opacity-60">
+                <Music className="w-8 h-8 text-blue-500 mb-2" />
+                <p className="text-sm font-bold text-white">Alta Fidelidad 320kbps</p>
+              </div>
             )}
           </div>
-
-          <div className="flex-grow flex flex-col justify-center items-center lg:items-start">
-            <div className="w-full max-w-sm">
-              
-              {/* PASO 1: MP4 o MP3 */}
-              {step === 1 && (
-                <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-right-4 duration-300">
-                  <button 
-                    onClick={() => { 
-                      setDownloadType('mp4'); 
-                      if(data.formats?.length) setSelectedQualityId(data.formats[0].id);
-                      setStep(2); 
-                    }}
-                    className="group flex flex-col items-center gap-3 p-5 rounded-[1.5rem] border border-white/5 bg-white/5 hover:bg-blue-600/20 hover:border-blue-500/50 transition-all"
-                  >
-                    <PlayCircle className="w-8 h-8 text-blue-500 group-hover:scale-110 transition-transform" />
-                    <span className="text-[9px] font-black text-white tracking-[0.15em]">VIDEO MP4</span>
-                  </button>
-                  <button 
-                    onClick={() => { 
-                      setDownloadType('mp3'); 
-                      setSelectedQualityId('mp3');
-                      setStep(2); 
-                    }}
-                    className="group flex flex-col items-center gap-3 p-5 rounded-[1.5rem] border border-white/5 bg-white/5 hover:bg-purple-600/20 hover:border-purple-500/50 transition-all"
-                  >
-                    <Headphones className="w-8 h-8 text-purple-500 group-hover:scale-110 transition-transform" />
-                    <span className="text-[9px] font-black text-white tracking-[0.15em]">AUDIO MP3</span>
-                  </button>
-                </div>
-              )}
-
-              {/* PASO 2: Calidad */}
-              {step === 2 && (
-                <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
-                  <div className="flex items-center gap-2 text-blue-400">
-                    <Settings2 className="w-4 h-4" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Ajustes {downloadType}</span>
-                  </div>
-
-                  {downloadType === 'mp4' ? (
-                    <select 
-                      value={selectedQualityId}
-                      onChange={(e) => setSelectedQualityId(e.target.value)}
-                      className="w-full bg-blue-900/10 text-white text-xs font-bold p-4 rounded-xl border border-white/10 outline-none cursor-pointer focus:border-blue-500/50"
-                    >
-                      {data.formats?.map((f) => (
-                        <option key={f.id} value={f.id} className="bg-[#0a0f1a]">
-                          {f.label} (.{f.ext})
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className="p-4 bg-purple-600/10 border border-purple-500/20 rounded-xl flex items-center gap-3 text-purple-400">
-                      <CheckCircle2 className="w-5 h-5" />
-                      <span className="text-[9px] font-black uppercase tracking-[0.1em]">Audio HQ 320kbps</span>
-                    </div>
-                  )}
-
-                  <button 
-                    onClick={() => setStep(3)}
-                    className="w-full bg-white text-black font-black py-4 rounded-xl text-[11px] flex items-center justify-center gap-2 hover:bg-blue-600 hover:text-white transition-all uppercase tracking-widest"
-                  >
-                    Continuar <ChevronRight className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
-
-              {/* PASO 3: Finalizar */}
-              {step === 3 && (
-                <div className="space-y-6 animate-in zoom-in-95 duration-300 text-center lg:text-left">
-                  <div className="space-y-2">
-                    <CheckCircle2 className="w-10 h-10 text-blue-500 mx-auto lg:mx-0" />
-                    <h4 className="text-white font-black text-xl uppercase italic">¡Todo listo!</h4>
-                    <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em]">
-                      Tu archivo está preparado para bajar
-                    </p>
-                  </div>
-
-                  <button 
-                    onClick={handleDownload}
-                    className="w-full group bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-xl active:scale-95"
-                  >
-                    <Download className="w-5 h-5 group-hover:animate-bounce" />
-                    <span className="text-[11px] tracking-widest font-black uppercase">Descargar ahora</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
         </div>
+
+        <button 
+          onClick={handleDownload}
+          disabled={isDownloading}
+          className={`mt-8 w-full py-4 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 transition-all ${isDownloading ? 'bg-white/5 text-gray-500' : 'bg-blue-600 text-white shadow-xl shadow-blue-900/10'}`}
+        >
+          {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          {isDownloading ? 'Sincronizando...' : 'Descargar ahora'}
+        </button>
       </div>
     </div>
   );
