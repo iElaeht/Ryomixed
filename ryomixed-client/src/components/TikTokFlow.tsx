@@ -1,26 +1,55 @@
-import React, { useState } from 'react';
-import { Download, Music, CheckCircle2, User, ChevronLeft, Loader2 } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  Download, 
+  Video, 
+  Loader2, 
+  CheckCircle2, 
+  Music,
+  ImageIcon,
+  Layers,
+  Check
+} from 'lucide-react';
 
-interface TikTokFlowProps {
-  data: {
-    type: 'video' | 'photos';
-    title: string;
-    sanitizedTitle: string;
-    author: string;
-    thumbnail: string;
-    urls: string[];
-    audioUrl?: string;
-  };
+interface TikTokData {
+  type: 'video' | 'photos';
+  title: string;
+  sanitizedTitle: string;
+  author: string;
+  thumbnail: string;
+  urls: string[];
+  audioUrl?: string;
 }
 
-const TikTokFlow: React.FC<TikTokFlowProps> = ({ data }) => {
-  const [step, setStep] = useState(1);
-  const [downloading, setDownloading] = useState(false);
-  const [selectedImages, setSelectedImages] = useState<number[]>(
-    data.type === 'photos' ? data.urls.map((_, i) => i) : []
-  );
+interface TikTokFlowProps {
+  data: TikTokData;
+  originalUrl: string;
+}
 
-  const isPhotos = data.type === 'photos';
+const TikTokFlow: React.FC<TikTokFlowProps> = ({ data, originalUrl }) => {
+  const [activeTab, setActiveTab] = useState<'content' | 'audio'>('content');
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<number[]>([]);
+  
+  const contentBtnRef = useRef<HTMLButtonElement>(null);
+  const audioBtnRef = useRef<HTMLButtonElement>(null);
+  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
+
+  // Seleccionar todas las fotos por defecto si es un álbum
+  useEffect(() => {
+    if (data.type === 'photos') {
+      setSelectedImages(data.urls.map((_, i) => i));
+    }
+  }, [data]);
+
+  useEffect(() => {
+    const activeBtn = activeTab === 'content' ? contentBtnRef.current : audioBtnRef.current;
+    if (activeBtn) {
+      setIndicatorStyle({
+        left: activeBtn.offsetLeft,
+        width: activeBtn.offsetWidth
+      });
+    }
+  }, [activeTab]);
 
   const toggleImage = (index: number) => {
     setSelectedImages(prev => 
@@ -28,177 +57,188 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data }) => {
     );
   };
 
-  const handleDownload = async (mode: 'video' | 'audio' | 'single' | 'photos') => {
-    // URL DE TU SERVIDOR EN RENDER
-    const RENDER_URL = 'https://ryomixed.onrender.com';
-    const baseUrlApi = window.location.hostname === 'localhost' 
-      ? 'http://localhost:4000' 
-      : RENDER_URL;
-
-    const downloadEndpoint = `${baseUrlApi}/api/tiktok/download`;
-    
-    let targetUrl = data.urls[0]; 
-    let downloadType: 'video' | 'audio' | 'single' | 'photos' = mode;
-
-    if (mode === 'audio' && data.audioUrl) {
-      targetUrl = data.audioUrl;
-    } else if (mode === 'single' && isPhotos) {
-      targetUrl = data.urls[selectedImages[0]];
-      downloadType = 'photos';
-    }
-
-    setDownloading(true);
+  const handleDownload = async () => {
+    if (!originalUrl || isDownloading) return;
+    setIsDownloading(true);
 
     try {
-      const params = new URLSearchParams({
-        url: targetUrl,
-        title: data.sanitizedTitle,
-        type: downloadType
-      });
-
-      // Crear link temporal para forzar la descarga
-      const link = document.createElement('a');
-      link.href = `${downloadEndpoint}?${params.toString()}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-    } catch (error) {
-      console.error("Error en la descarga:", error);
-      alert("Hubo un fallo al procesar la descarga.");
+      // Manejo dinámico según el tipo de contenido
+      if (activeTab === 'audio' || data.type === 'video') {
+        const resourceUrl = activeTab === 'audio' ? data.audioUrl : data.urls[0];
+        await triggerSingleDownload(resourceUrl!, activeTab === 'audio' ? 'mp3' : 'mp4');
+      } else {
+        // Lógica para descarga múltiple de imágenes seleccionadas
+        for (const index of selectedImages) {
+          await triggerSingleDownload(data.urls[index], 'jpg', `_img_${index + 1}`);
+        }
+      }
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Error desconocido";
+      alert(`Error: ${errorMessage}`);
     } finally {
-      // Dejamos el estado de carga un poco más de tiempo para feedback visual
-      setTimeout(() => setDownloading(false), 3000);
+      setIsDownloading(false);
     }
   };
 
+  const triggerSingleDownload = async (url: string, ext: string, suffix = '') => {
+    const baseUrl = "http://localhost:4000/api/tiktok/download"; 
+    const params = new URLSearchParams({
+      url: url,
+      title: data.sanitizedTitle + suffix,
+      type: ext === 'mp3' ? 'audio' : 'video'
+    });
+
+    const response = await fetch(`${baseUrl}?${params.toString()}`);
+    if (!response.ok) throw new Error('Error al procesar la descarga');
+
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = `${data.sanitizedTitle}${suffix}.${ext}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(blobUrl);
+  };
+
   return (
-    <div className="w-full max-w-5xl bg-[#0a0f1a]/80 backdrop-blur-2xl border border-white/5 rounded-[2.5rem] p-6 md:p-8 animate-in fade-in zoom-in-95 duration-500 shadow-2xl">
-      <div className="flex flex-col lg:flex-row gap-12 items-center lg:items-stretch">
-        
-        {/* LADO IZQUIERDO: PREVIEW */}
-        <div className="flex flex-col gap-4 w-full lg:w-72 shrink-0">
-          <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black/40 aspect-video shadow-inner">
-            <img 
-              src={data.thumbnail} 
-              alt={data.title} 
-              className="w-full h-full object-cover"
-              referrerPolicy="no-referrer" 
-            />
-            {isPhotos && (
-              <div className="absolute top-2 right-2 bg-pink-600 px-2 py-0.5 rounded-lg text-[10px] font-black text-white shadow-xl">
-                {data.urls.length} FOTOS
-              </div>
-            )}
-          </div>
-          
-          <div className="space-y-1 px-1 text-left">
-            <h3 className="text-lg font-black text-white leading-tight tracking-tight line-clamp-2 italic uppercase">
-              {data.title}
-            </h3>
-            <div className="text-sm font-medium text-gray-400 flex items-center gap-2">
-              <User className="w-3 h-3 text-pink-500" />
-              <span className="opacity-60 uppercase tracking-widest text-[9px] font-black">{data.author}</span>
-            </div>
-          </div>
+    <div className="w-full max-w-5xl bg-[#0d0d0d]/95 backdrop-blur-2xl border border-white/5 rounded-[2.5rem] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-500">
+      
+      {/* HEADER DE INFORMACIÓN */}
+      <div className="p-8 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gradient-to-r from-pink-500/5 to-transparent">
+<div className="flex items-center gap-5">
+  <div className="p-4 bg-pink-600 rounded-2xl shadow-lg shadow-pink-900/40 relative">
+    {/* AQUÍ USAMOS LOS ICONOS: ImageIcon para álbumes, Video para videos */}
+    {data.type === 'photos' ? (
+      <div className="relative">
+        <ImageIcon className="text-white w-6 h-6" />
+        {/* Usamos Layers como icono secundario para álbumes, solucionando la advertencia */}
+        <Layers className="text-pink-200/50 w-3 h-3 absolute -top-1.5 -right-1.5" />
+      </div>
+    ) : (
+      <Video className="text-white w-6 h-6 fill-current" />
+    )}
+    
+    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[#0d0d0d] flex items-center justify-center">
+      <Check className="w-2.5 h-2.5 text-white stroke-[4px]" />
+    </div>
+  </div>
+  
+  <div>
+    <h2 className="text-xl font-black text-white tracking-tight line-clamp-1">{data.title}</h2>
+    <p className="text-sm text-pink-500 font-bold uppercase tracking-[0.2em]">@{data.author}</p>
+  </div>
+</div>
+
+        {/* TABS ESTILO RYO-MIXED */}
+        <div className="relative flex p-1.5 bg-white/5 rounded-2xl border border-white/10 w-fit">
+          <button 
+            ref={contentBtnRef}
+            onClick={() => setActiveTab('content')}
+            className={`relative z-10 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${activeTab === 'content' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+          >
+            {data.type === 'photos' ? 'Galería HD' : 'Video MP4'}
+          </button>
+          <button 
+            ref={audioBtnRef}
+            onClick={() => setActiveTab('audio')}
+            className={`relative z-10 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${activeTab === 'audio' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+          >
+            Audio MP3
+          </button>
+          <div 
+            className="absolute h-[calc(100%-12px)] top-1.5 bg-pink-600 rounded-xl transition-all duration-300 shadow-lg shadow-pink-900/40"
+            style={{ left: indicatorStyle.left, width: indicatorStyle.width }}
+          />
         </div>
+      </div>
 
-        {/* LADO DERECHO: INTERFAZ */}
-        <div className="flex-grow flex flex-col min-h-[300px] w-full text-left">
-          
-          <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-4">
-            <div className="flex items-center gap-3">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-pink-600 text-[9px] font-black text-white">
-                {step}
-              </span>
-              <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em]">
-                {step === 1 ? (isPhotos ? "Seleccionar Imágenes" : "Elegir Formato") : "Confirmar Descarga"}
-              </h4>
-            </div>
-            {step > 1 && !downloading && (
-              <button onClick={() => setStep(1)} className="text-gray-500 hover:text-white transition-colors text-[9px] font-black tracking-widest uppercase flex items-center gap-1">
-                <ChevronLeft className="w-3 h-3" /> Volver
-              </button>
-            )}
-          </div>
-
-          <div className="flex-grow flex flex-col justify-center items-center lg:items-start">
-            {step === 1 ? (
-              <div className="animate-in slide-in-from-right-4 duration-300 w-full">
-                {isPhotos ? (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[180px] overflow-y-auto pr-2 custom-scrollbar">
-                      {data.urls.map((url, index) => (
-                        <div 
-                          key={index}
-                          onClick={() => toggleImage(index)}
-                          className={`relative cursor-pointer rounded-xl overflow-hidden border-2 transition-all ${
-                            selectedImages.includes(index) ? 'border-pink-500 scale-95' : 'border-transparent opacity-50'
-                          }`}
-                        >
-                          <img src={url} alt="" className="w-full h-16 object-cover" referrerPolicy="no-referrer" />
-                          {selectedImages.includes(index) && (
-                            <div className="absolute inset-0 bg-pink-500/20 flex items-center justify-center">
-                              <CheckCircle2 className="w-5 h-5 text-white" />
-                            </div>
-                          )}
-                        </div>
-                      ))}
+      <div className="flex flex-col md:flex-row min-h-[450px]">
+        {/* ÁREA DE CONTENIDO DINÁMICO */}
+        <div className="flex-grow p-8 bg-black/20">
+          {activeTab === 'content' ? (
+            data.type === 'photos' ? (
+              /* GRID DE GALERÍA PARA CARRUSELES */
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                {data.urls.map((url, i) => (
+                  <div 
+                    key={i} 
+                    onClick={() => toggleImage(i)}
+                    className={`relative aspect-square rounded-2xl overflow-hidden cursor-pointer group transition-all duration-500 ${selectedImages.includes(i) ? 'ring-4 ring-pink-600 scale-[0.96]' : 'opacity-40 hover:opacity-100 hover:scale-[1.02]'}`}
+                  >
+                    <img src={url} className="w-full h-full object-cover" alt={`TikTok ${i}`} />
+                    <div className={`absolute inset-0 bg-pink-600/20 transition-opacity ${selectedImages.includes(i) ? 'opacity-100' : 'opacity-0'}`} />
+                    <div className={`absolute top-3 right-3 p-1.5 rounded-full shadow-xl transition-all ${selectedImages.includes(i) ? 'bg-pink-600 scale-110' : 'bg-black/60 opacity-0 group-hover:opacity-100'}`}>
+                      <CheckCircle2 className="w-4 h-4 text-white" />
                     </div>
-                    <button 
-                      disabled={selectedImages.length === 0}
-                      onClick={() => setStep(2)}
-                      className="w-full max-w-sm bg-white text-black font-black py-3 rounded-xl text-[10px] tracking-[0.2em] uppercase hover:bg-pink-600 hover:text-white transition-all disabled:opacity-30"
-                    >
-                      Continuar con {selectedImages.length} items
-                    </button>
                   </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-sm w-full">
-                    <button 
-                      onClick={() => setStep(2)}
-                      className="group flex flex-col items-center gap-3 p-5 rounded-3xl border border-white/5 bg-white/5 hover:bg-pink-600/20 hover:border-pink-500/50 transition-all"
-                    >
-                      <Download className="w-8 h-8 text-pink-500" />
-                      <span className="text-[9px] font-black tracking-widest uppercase">Video Sin Marca</span>
-                    </button>
-                    <button 
-                      onClick={() => handleDownload('audio')}
-                      disabled={downloading}
-                      className="group flex flex-col items-center gap-3 p-5 rounded-3xl border border-white/5 bg-white/5 hover:bg-blue-600/20 hover:border-blue-500/50 transition-all disabled:opacity-50"
-                    >
-                      {downloading ? <Loader2 className="w-8 h-8 text-blue-500 animate-spin" /> : <Music className="w-8 h-8 text-blue-500" />}
-                      <span className="text-[9px] font-black tracking-widest uppercase">Solo Audio MP3</span>
-                    </button>
-                  </div>
-                )}
+                ))}
               </div>
             ) : (
-              <div className="max-w-sm animate-in zoom-in-95 duration-300 space-y-6 w-full text-center lg:text-left">
-                <div className="space-y-2">
-                  <Download className="w-10 h-10 text-pink-500 mx-auto lg:mx-0" />
-                  <h4 className="text-white font-black text-2xl uppercase italic leading-none">
-                    {downloading ? "Procesando..." : "¡Listo para bajar!"}
-                  </h4>
-                  <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em]">
-                    {isPhotos ? `Pack de ${selectedImages.length} fotos` : "Video HD optimizado"}
-                  </p>
+              /* PREVIEW DE VIDEO ÚNICO */
+              <div className="h-full flex items-center justify-center">
+                <div className="relative group max-w-sm w-full rounded-[2rem] overflow-hidden shadow-2xl border border-white/10">
+                  <img src={data.thumbnail} className="w-full object-cover" alt="Video Preview" />
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500">
+                    <div className="p-4 bg-white/10 backdrop-blur-xl rounded-full border border-white/20">
+                      <Video className="w-8 h-8 text-white fill-current" />
+                    </div>
+                  </div>
                 </div>
-                <button 
-                  disabled={downloading}
-                  onClick={() => handleDownload(isPhotos ? 'single' : 'video')}
-                  className="w-full bg-pink-600 hover:bg-pink-500 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all text-[11px] tracking-widest uppercase disabled:bg-gray-800"
-                >
-                  {downloading ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <Download className="w-5 h-5" />
-                  )}
-                  {downloading ? "Descargando..." : "Descargar Ahora"}
-                </button>
               </div>
+            )
+          ) : (
+            /* VISTA DE AUDIO */
+            <div className="h-full flex flex-col items-center justify-center space-y-6">
+              <div className="w-24 h-24 bg-pink-600/10 rounded-full flex items-center justify-center animate-pulse">
+                <Music className="w-12 h-12 text-pink-600" />
+              </div>
+              <div className="text-center">
+                <p className="text-white font-black uppercase tracking-widest text-xs">Audio Original Detectado</p>
+                <p className="text-white/40 text-[10px] mt-2 uppercase">320kbps • HQ Extract</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* PANEL DE ACCIÓN LATERAL */}
+        <div className="w-full md:w-80 p-8 border-l border-white/5 bg-white/[0.02] flex flex-col justify-between gap-8">
+          <div className="space-y-6">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30">Configuración</h3>
+            
+            <div className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-white/60 uppercase">Formato:</span>
+                <span className="text-[10px] font-black text-pink-500 uppercase">{activeTab === 'audio' ? 'MP3' : data.type === 'photos' ? 'JPG' : 'MP4'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-white/60 uppercase">Archivos:</span>
+                <span className="text-[10px] font-black text-white uppercase">
+                  {activeTab === 'audio' || data.type === 'video' ? '1' : selectedImages.length}
+                </span>
+              </div>
+            </div>
+
+            {data.type === 'photos' && activeTab === 'content' && (
+               <p className="text-[9px] text-white/40 leading-relaxed text-center italic">
+                 Haz clic en las fotos de la izquierda para incluirlas en la descarga múltiple.
+               </p>
             )}
           </div>
+
+          <button 
+            onClick={handleDownload}
+            disabled={isDownloading || (data.type === 'photos' && activeTab === 'content' && selectedImages.length === 0)}
+            className={`w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-[0.4em] transition-all flex items-center justify-center gap-3 ${
+              isDownloading 
+              ? 'bg-white/5 text-gray-600 cursor-not-allowed' 
+              : 'bg-pink-600 hover:bg-pink-500 text-white shadow-2xl shadow-pink-900/40 active:scale-95'
+            }`}
+          >
+            {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {isDownloading ? 'Bajando...' : 'Descargar'}
+          </button>
         </div>
       </div>
     </div>

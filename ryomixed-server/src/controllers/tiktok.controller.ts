@@ -13,23 +13,20 @@ export class TikTokController {
             const info = await tkService.getInfo(url);
             res.json({ success: true, data: info });
         } catch (error: any) {
-            console.error("❌ [TK Controller Error]:", error.message);
             res.status(400).json({ success: false, message: error.message });
         }
     }
 
     async download(req: Request, res: Response) {
         try {
-            const { url, title, type } = req.query;
+            const { url, title, type } = req.query; // Uso de query para mayor estabilidad en streams
             if (!url) return res.status(400).send("Falta la URL");
 
-            // Definimos extensión y tipo de contenido
             let ext = 'mp4';
             let contentType = 'video/mp4';
             if (type === 'audio') { ext = 'mp3'; contentType = 'audio/mpeg'; }
             if (type === 'photos') { ext = 'jpg'; contentType = 'image/jpeg'; }
 
-            // Sanitización del título para RyoMixed
             const safeTitle = String(title || 'RyoMixed_Media').replace(/[^a-zA-Z0-9]/g, '_');
 
             const response = await axios({
@@ -47,7 +44,7 @@ export class TikTokController {
             response.data.pipe(res);
         } catch (error: any) {
             console.error("❌ [TK Download Error]:", error.message);
-            if (!res.headersSent) res.status(500).send("No se pudo descargar el archivo");
+            if (!res.headersSent) res.status(500).send("Error en la descarga");
         }
     }
 }

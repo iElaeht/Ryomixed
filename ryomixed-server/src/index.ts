@@ -11,12 +11,10 @@ const IS_DEV = process.env.NODE_ENV === 'development';
 
 /**
  * OPTIMIZACIÓN DE COMPRESIÓN:
- * No comprimimos archivos de video o audio (mp4/mp3) porque ya están 
- * comprimidos nativamente. Comprimirlos de nuevo solo gastaría CPU inútilmente.
+ * Filtro inteligente para no procesar archivos multimedia ya comprimidos (MP4/MP3).
  */
 app.use(compression({
     filter: (req, res) => {
-        // Si la respuesta es un video o audio, saltamos la compresión
         const contentType = res.getHeader('Content-Type') as string;
         if (contentType && (contentType.includes('video') || contentType.includes('audio'))) {
             return false;
@@ -27,8 +25,8 @@ app.use(compression({
 
 /**
  * CONFIGURACIÓN DE CORS:
- * Hemos añadido 'Content-Disposition' a los headers expuestos para que el 
- * navegador del usuario pueda leer el nombre del archivo descargado.
+ * Incluye tus dominios de Vercel y permite que el cliente lea 'Content-Disposition' 
+ * para descargar los archivos con sus nombres limpios (sanitize).
  */
 app.use(cors({
     origin: [
@@ -43,7 +41,7 @@ app.use(cors({
     credentials: true
 }));
 
-// Limitamos el JSON a 1mb para evitar ataques de denegación de servicio (DoS)
+// Seguridad básica: Límite de carga para evitar saturación de memoria (32GB RAM protegidos)
 app.use(express.json({ limit: '1mb' })); 
 app.use(express.urlencoded({ extended: true }));
 
@@ -51,7 +49,7 @@ app.use(express.urlencoded({ extended: true }));
  * RUTAS PRINCIPALES
  */
 
-// Health Check: Útil para que Render sepa que el servidor está vivo
+// Health Check: Vital para el monitoreo en Render
 app.get('/api/health', (_req: Request, res: Response) => {
     res.status(200).json({ 
         status: 'online', 
@@ -62,7 +60,10 @@ app.get('/api/health', (_req: Request, res: Response) => {
     });
 });
 
-// Conexión con el archivo central de rutas (donde está youtube.routes.ts)
+/**
+ * CONEXIÓN CON EL ENRUTADOR CENTRAL
+ * Aquí es donde se dividen los caminos hacia /youtube y /tiktok
+ */
 app.use('/api', apiRoutes);
 
 app.get('/', (_req: Request, res: Response) => {
@@ -73,19 +74,16 @@ app.get('/', (_req: Request, res: Response) => {
  * MANEJO GLOBAL DE ERRORES
  */
 
-// Manejador para rutas no existentes
 app.use((_req: Request, res: Response) => {
-    res.status(404).json({ success: false, message: "Ruta no encontrada" });
+    res.status(404).json({ success: false, message: "Ruta no encontrada en RyoMixed" });
 });
 
-// Manejador de errores del sistema: Evita que el servidor se caiga ante un error inesperado
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || 500;
     
-    // Solo logueamos errores graves en producción
+    // Logueo de errores para depuración técnica
     console.error(`🔥 [Error ${status}]:`, err.message);
     
-    // Si ya enviamos cabeceras (por ejemplo, en mitad de una descarga), no podemos enviar JSON
     if (res.headersSent) {
         return _next(err);
     }
@@ -98,9 +96,8 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 /**
- * INICIO Y CIERRE SEGURO DEL SERVIDOR
+ * INICIO SEGURO
  */
-
 const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`
     🚀 RyoMixed Backend Corriendo
@@ -112,11 +109,11 @@ const server = app.listen(PORT, '0.0.0.0', () => {
     `);
 });
 
-// Graceful Shutdown: Cerramos el servidor limpiamente para no dejar descargas colgadas
+// Graceful Shutdown
 process.on('SIGTERM', () => {
-    console.log('SIGTERM recibido. Cerrando servidor...');
+    console.log('SIGTERM recibido. Cerrando servidor de forma limpia...');
     server.close(() => {
-        console.log('Servidor cerrado correctamente.');
+        console.log('Servidor RyoMixed cerrado.');
         process.exit(0);
     });
 });

@@ -2,12 +2,12 @@ import { Router } from 'express';
 import { TikTokController } from '../controllers/tiktok.controller.js';
 
 const router = Router();
-const tkController = new TikTokController();
+const tiktokController = new TikTokController();
 
-// POST para obtener la info del video o carrusel
-router.post('/info', (req, res) => tkController.getInfo(req, res));
+// Esta se queda igual porque el buscador envía un JSON
+router.post('/info', (req, res) => tiktokController.getInfo(req, res));
 
-// GET para descargar el recurso procesado
-router.get('/download', (req, res) => tkController.download(req, res));
+// CAMBIO CRUCIAL: Cambiar .post por .get para que coincida con el fetch del Flow
+router.get('/download', (req, res) => tiktokController.download(req, res));
 
 export default router;
