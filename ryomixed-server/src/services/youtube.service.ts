@@ -28,12 +28,17 @@ export class YouTubeService {
   private ffmpegPath: string | undefined;
 
   constructor() {
-    try {
-      this.ffmpegPath = execSync(isWin ? "where ffmpeg" : "which ffmpeg")
-        .toString().trim().split("\r\n")[0];
-      console.log(`🚀 RyoStyle Engine: FFmpeg vinculado en ${this.ffmpegPath}`);
-    } catch (e) {
-      console.error("⚠️ FFmpeg no detectado.");
+    if (isProduction) {
+      this.ffmpegPath = path.join(rootPath, "bin", "ffmpeg");
+      console.log(`🚀 RyoStyle Engine: FFmpeg (Prod) vinculado en ${this.ffmpegPath}`);
+    } else {
+      try {
+        this.ffmpegPath = execSync(isWin ? "where ffmpeg" : "which ffmpeg")
+          .toString().trim().split("\r\n")[0];
+        console.log(`🚀 RyoStyle Engine: FFmpeg (Local) vinculado en ${this.ffmpegPath}`);
+      } catch (e) {
+        console.error("⚠️ FFmpeg no detectado localmente.");
+      }
     }
   }
 

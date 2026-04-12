@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "type": "module",
-  "scripts": {
-    "postinstall": "node node_modules/youtube-dl-exec/scripts/postinstall.js",
+"scripts": {
+    "postinstall": "node node_modules/youtube-dl-exec/scripts/postinstall.js && node -e \"require('ffbinaries').downloadBinaries(['ffmpeg', 'ffprobe'], {destination: './bin'})\"",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
@@ -31,6 +31,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.1",
     "express": "^4.21.2",
+    "ffbinaries": "^1.1.6",
     "youtube-dl-exec": "^3.1.4"
   }
 }
