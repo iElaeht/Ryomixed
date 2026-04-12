@@ -62,7 +62,7 @@ const YouTubeFlow: React.FC<YouTubeFlowProps> = ({ data, originalUrl }) => {
     try {
       setIsDownloading(true);
       
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/youtube/download`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://ryomixed-production.up.railway.app'}/api/youtube/download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
