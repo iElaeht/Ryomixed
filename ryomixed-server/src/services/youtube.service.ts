@@ -7,7 +7,11 @@ import { execSync } from "child_process";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootPath = path.resolve(__dirname, "../../");
-const cookiesPath = path.join(rootPath, "cookies.txt");
+
+const isProduction = process.env.NODE_ENV === 'production';
+const cookiesPath = isProduction 
+  ? "/etc/secrets/cookies.txt" 
+  : path.join(rootPath, "cookies.txt");
 
 const isWin = process.platform === "win32";
 const binPath = path.join(
