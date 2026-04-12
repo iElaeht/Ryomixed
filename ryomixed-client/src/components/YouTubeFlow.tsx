@@ -56,17 +56,24 @@ const YouTubeFlow: React.FC<YouTubeFlowProps> = ({ data, originalUrl }) => {
   };
 
   const handleDownload = async () => {
-    // Verificación de seguridad para evitar el error 'trim' en el servidor
     if (!originalUrl || isDownloading) return;
 
     try {
       setIsDownloading(true);
       
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://ryomixed-production.up.railway.app'}/api/youtube/download`, {
+      // LÓGICA DINÁMICA DE URL: 
+      // Detecta si estás en localhost para usar el puerto 4000, 
+      // de lo contrario usa tu URL de Railway.
+      const isLocal = window.location.hostname === 'localhost';
+      const apiUrl = isLocal 
+        ? 'http://localhost:4000' 
+        : 'https://ryomixed-production.up.railway.app';
+
+      const response = await fetch(`${apiUrl}/api/youtube/download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          url: originalUrl.trim(), // Aseguramos que la URL viaje limpia
+          url: originalUrl.trim(),
           formatId: activeTab === 'audio' ? 'mp3' : selectedFormat,
           title: data.sanitizedTitle,
           type: activeTab
@@ -103,7 +110,6 @@ const YouTubeFlow: React.FC<YouTubeFlowProps> = ({ data, originalUrl }) => {
         <div className="relative group">
           <img src={data.thumbnail} className="w-full aspect-video object-cover rounded-2xl shadow-2xl" alt="" />
           
-          {/* Badge (Usamos Video en lugar de Youtube para evitar el error de Lucide) */}
           <div className="absolute top-3 right-3 bg-red-600 px-2.5 py-1 rounded-md flex items-center gap-1.5 shadow-lg">
             <Video className="w-3 h-3 text-white fill-current" />
             <span className="text-[10px] font-black uppercase tracking-tighter text-white">LIVE</span>

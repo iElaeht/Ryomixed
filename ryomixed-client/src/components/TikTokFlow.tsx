@@ -62,12 +62,12 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data, originalUrl }) => {
     setIsDownloading(true);
 
     try {
-      // Manejo dinámico según el tipo de contenido
       if (activeTab === 'audio' || data.type === 'video') {
         const resourceUrl = activeTab === 'audio' ? data.audioUrl : data.urls[0];
-        await triggerSingleDownload(resourceUrl!, activeTab === 'audio' ? 'mp3' : 'mp4');
+        if (!resourceUrl) throw new Error("No se encontró la URL del recurso");
+        await triggerSingleDownload(resourceUrl, activeTab === 'audio' ? 'mp3' : 'mp4');
       } else {
-        // Lógica para descarga múltiple de imágenes seleccionadas
+        // Descarga múltiple para fotos
         for (const index of selectedImages) {
           await triggerSingleDownload(data.urls[index], 'jpg', `_img_${index + 1}`);
         }
@@ -81,15 +81,21 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data, originalUrl }) => {
   };
 
   const triggerSingleDownload = async (url: string, ext: string, suffix = '') => {
-    const baseUrl = "http://localhost:4000/api/tiktok/download"; 
+    // LÓGICA DINÁMICA DE URL (Igual que en YouTubeFlow)
+    const isLocal = window.location.hostname === 'localhost';
+    const apiUrl = isLocal 
+      ? "http://localhost:4000/api/tiktok/download" 
+      : "https://ryomixed-production.up.railway.app/api/tiktok/download";
+
     const params = new URLSearchParams({
       url: url,
       title: data.sanitizedTitle + suffix,
       type: ext === 'mp3' ? 'audio' : 'video'
     });
 
-    const response = await fetch(`${baseUrl}?${params.toString()}`);
-    if (!response.ok) throw new Error('Error al procesar la descarga');
+    const response = await fetch(`${apiUrl}?${params.toString()}`);
+    
+    if (!response.ok) throw new Error('Error al procesar la descarga en el servidor');
 
     const blob = await response.blob();
     const blobUrl = window.URL.createObjectURL(blob);
@@ -107,31 +113,29 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data, originalUrl }) => {
       
       {/* HEADER DE INFORMACIÓN */}
       <div className="p-8 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gradient-to-r from-pink-500/5 to-transparent">
-<div className="flex items-center gap-5">
-  <div className="p-4 bg-pink-600 rounded-2xl shadow-lg shadow-pink-900/40 relative">
-    {/* AQUÍ USAMOS LOS ICONOS: ImageIcon para álbumes, Video para videos */}
-    {data.type === 'photos' ? (
-      <div className="relative">
-        <ImageIcon className="text-white w-6 h-6" />
-        {/* Usamos Layers como icono secundario para álbumes, solucionando la advertencia */}
-        <Layers className="text-pink-200/50 w-3 h-3 absolute -top-1.5 -right-1.5" />
-      </div>
-    ) : (
-      <Video className="text-white w-6 h-6 fill-current" />
-    )}
-    
-    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[#0d0d0d] flex items-center justify-center">
-      <Check className="w-2.5 h-2.5 text-white stroke-[4px]" />
-    </div>
-  </div>
-  
-  <div>
-    <h2 className="text-xl font-black text-white tracking-tight line-clamp-1">{data.title}</h2>
-    <p className="text-sm text-pink-500 font-bold uppercase tracking-[0.2em]">@{data.author}</p>
-  </div>
-</div>
+        <div className="flex items-center gap-5">
+          <div className="p-4 bg-pink-600 rounded-2xl shadow-lg shadow-pink-900/40 relative">
+            {data.type === 'photos' ? (
+              <div className="relative">
+                <ImageIcon className="text-white w-6 h-6" />
+                <Layers className="text-pink-200/50 w-3 h-3 absolute -top-1.5 -right-1.5" />
+              </div>
+            ) : (
+              <Video className="text-white w-6 h-6 fill-current" />
+            )}
+            
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[#0d0d0d] flex items-center justify-center">
+              <Check className="w-2.5 h-2.5 text-white stroke-[4px]" />
+            </div>
+          </div>
+          
+          <div>
+            <h2 className="text-xl font-black text-white tracking-tight line-clamp-1">{data.title}</h2>
+            <p className="text-sm text-pink-500 font-bold uppercase tracking-[0.2em]">@{data.author}</p>
+          </div>
+        </div>
 
-        {/* TABS ESTILO RYO-MIXED */}
+        {/* TABS */}
         <div className="relative flex p-1.5 bg-white/5 rounded-2xl border border-white/10 w-fit">
           <button 
             ref={contentBtnRef}
@@ -155,11 +159,10 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data, originalUrl }) => {
       </div>
 
       <div className="flex flex-col md:flex-row min-h-[450px]">
-        {/* ÁREA DE CONTENIDO DINÁMICO */}
+        {/* ÁREA DE CONTENIDO */}
         <div className="flex-grow p-8 bg-black/20">
           {activeTab === 'content' ? (
             data.type === 'photos' ? (
-              /* GRID DE GALERÍA PARA CARRUSELES */
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                 {data.urls.map((url, i) => (
                   <div 
@@ -176,7 +179,6 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data, originalUrl }) => {
                 ))}
               </div>
             ) : (
-              /* PREVIEW DE VIDEO ÚNICO */
               <div className="h-full flex items-center justify-center">
                 <div className="relative group max-w-sm w-full rounded-[2rem] overflow-hidden shadow-2xl border border-white/10">
                   <img src={data.thumbnail} className="w-full object-cover" alt="Video Preview" />
@@ -189,7 +191,6 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data, originalUrl }) => {
               </div>
             )
           ) : (
-            /* VISTA DE AUDIO */
             <div className="h-full flex flex-col items-center justify-center space-y-6">
               <div className="w-24 h-24 bg-pink-600/10 rounded-full flex items-center justify-center animate-pulse">
                 <Music className="w-12 h-12 text-pink-600" />
@@ -202,7 +203,7 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data, originalUrl }) => {
           )}
         </div>
 
-        {/* PANEL DE ACCIÓN LATERAL */}
+        {/* PANEL LATERAL */}
         <div className="w-full md:w-80 p-8 border-l border-white/5 bg-white/[0.02] flex flex-col justify-between gap-8">
           <div className="space-y-6">
             <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30">Configuración</h3>
@@ -222,7 +223,7 @@ const TikTokFlow: React.FC<TikTokFlowProps> = ({ data, originalUrl }) => {
 
             {data.type === 'photos' && activeTab === 'content' && (
                <p className="text-[9px] text-white/40 leading-relaxed text-center italic">
-                 Haz clic en las fotos de la izquierda para incluirlas en la descarga múltiple.
+                 Haz clic en las fotos para seleccionarlas.
                </p>
             )}
           </div>

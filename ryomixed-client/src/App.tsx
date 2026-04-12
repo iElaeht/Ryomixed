@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import Nav from './components/ui/Navbar';
 import Footer from './components/ui/Footer';
 import ModalAbout from './components/ui/ModalAbout';
@@ -22,7 +22,7 @@ interface YouTubeData {
 }
 
 interface TikTokData {
-  type: 'video' | 'photos'; // Sincronizado con tiktok.service.ts
+  type: 'video' | 'photos';
   title: string;
   sanitizedTitle: string; 
   author: string;
@@ -40,7 +40,33 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
 
-  // Base de la API dinámica (localhost para desarrollo, Render para producción)
+  // --- BLOQUEO DE MODO DESARROLLADOR Y CLICK DERECHO ---
+  useEffect(() => {
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Bloquear F12
+      if (e.key === 'F12') e.preventDefault();
+      // Bloquear Ctrl+Shift+I (Inspeccionar)
+      if (e.ctrlKey && e.shiftKey && e.key === 'I') e.preventDefault();
+      // Bloquear Ctrl+Shift+J (Consola)
+      if (e.ctrlKey && e.shiftKey && e.key === 'J') e.preventDefault();
+      // Bloquear Ctrl+U (Ver código fuente)
+      if (e.ctrlKey && e.key === 'u') e.preventDefault();
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  // Base de la API dinámica mejorada
   const apiBaseUrl = useMemo(() => 
     window.location.hostname === 'localhost' ? LOCAL_URL : RENDER_URL
   , []);
@@ -56,8 +82,6 @@ function App() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Limpieza de URL para evitar parámetros de rastreo innecesarios
     const cleanUrl = url.trim().split(/\s+/).find(part => part.includes('http'));
     if (!cleanUrl) return;
 
@@ -81,18 +105,15 @@ function App() {
       if (responseData.success && responseData.data) {
         const info = responseData.data;
 
-        // Normalización de datos para los flujos
         setVideoData({
           ...info,
           type: isYouTube ? 'youtube' : info.type,
-          // Aseguramos que siempre exista un sanitizedTitle para Windows
           sanitizedTitle: info.sanitizedTitle || info.title.replace(/[^\w\s]/gi, '').replace(/\s+/g, '_'),
         });
       } else {
         throw new Error(responseData.message || "No se pudo obtener la información.");
       }
     } catch (error: unknown) {
-      // Manejo de errores tipado para evitar el aviso de ESLint
       const errorMessage = error instanceof Error ? error.message : "Error de conexión con el servidor.";
       console.error("🔴 [App Search Error]:", errorMessage);
       alert(errorMessage);
