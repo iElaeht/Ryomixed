@@ -7,7 +7,7 @@ import TikTokFlow from './components/TikTokFlow';
 import { Search, Loader2, ClipboardPaste, Sparkles } from 'lucide-react';
 
 // --- CONFIGURACIÓN ---
-const RENDER_URL = 'https://ryomixed.onrender.com';
+const RENDER_URL = 'https://tu-proyecto.up.railway.app';
 const LOCAL_URL = 'http://localhost:4000';
 
 // --- INTERFACES ---
