@@ -4,14 +4,18 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
 
+// Configuración de rutas básicas
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootPath = path.resolve(__dirname, "../../");
 
 const isProduction = process.env.NODE_ENV === 'production';
-const cookiesPath = isProduction 
-  ? "/etc/secrets/cookies.txt" 
-  : path.join(rootPath, "cookies.txt");
+
+/**
+ * CONFIGURACIÓN DE RUTAS PARA RAILWAY
+ * En Railway, las cookies estarán en la raíz del servidor.
+ */
+const cookiesPath = path.join(rootPath, "cookies.txt");
 
 const isWin = process.platform === "win32";
 const binPath = path.join(
@@ -22,12 +26,17 @@ const binPath = path.join(
   isWin ? "yt-dlp.exe" : "yt-dlp",
 );
 
+// Inicialización de la instancia de yt-dlp
 const ytdl = create(binPath);
 
 export class YouTubeService {
   private ffmpegPath: string | undefined;
 
   constructor() {
+    /**
+     * VINCULACIÓN DE FFMPEG
+     * En producción usamos la carpeta /bin generada por install-ffmpeg.cjs
+     */
     if (isProduction) {
       this.ffmpegPath = path.join(rootPath, "bin", "ffmpeg");
       console.log(`🚀 RyoStyle Engine: FFmpeg (Prod) vinculado en ${this.ffmpegPath}`);
@@ -46,9 +55,6 @@ export class YouTubeService {
     return title.replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "_");
   }
 
-  /**
-   * MANTENEMOS ESTA LÓGICA FIEL A LA QUE SÍ OBTIENE VISTA
-   */
   async getInfo(url: string) {
     if (!url) throw new Error("URL no proporcionada");
 
@@ -59,12 +65,17 @@ export class YouTubeService {
       addHeader: ["Accept-Language: es-ES,es;q=0.9"],
     };
 
-    if (fs.existsSync(cookiesPath)) options.cookies = cookiesPath;
+    // Aplicar cookies si el archivo existe
+    if (fs.existsSync(cookiesPath)) {
+      options.cookies = cookiesPath;
+      console.log("🍪 Cookies detectadas y aplicadas al extractor.");
+    } else {
+      console.warn("⚠️ No se encontró cookies.txt, las peticiones podrían fallar.");
+    }
 
     try {
       const output: any = await ytdl(url.trim(), options);
       
-      // Mapeo que ya confirmamos que funciona para tu UI
       const formats = (output.formats || [])
         .filter((f: any) => f.vcodec !== "none" && f.ext === "mp4" && (f.format_note || f.height))
         .map((f: any) => ({
@@ -88,15 +99,11 @@ export class YouTubeService {
       };
     } catch (error: any) {
       console.error("🔴 Error en GetInfo:", error.message);
-      throw new Error("No se pudo obtener la información.");
+      throw new Error("No se pudo obtener la información de YouTube.");
     }
   }
 
-  /**
-   * AQUÍ APLICAMOS EL "MODO BLINDADO" SOLO PARA LA DESCARGA
-   */
   async execDownload(url: string, formatId: string, res: any) {
-    // Nombre único para evitar el error de "un solo uso"
     const tempFileName = `ryo_download_${Date.now()}.mp4`;
     const tempPath = path.join(rootPath, tempFileName);
 
@@ -118,21 +125,18 @@ export class YouTubeService {
       if (subprocess.stdout) subprocess.stdout.pipe(res);
       return subprocess;
     } else {
-      // PROCESO DE VIDEO ROBUSTO
+      // Configuración robusta para video (Audio + Video)
       options.output = tempPath;
-      // Esta combinación asegura que FFmpeg pegue audio y video sin errores
       options.format = `${formatId}+bestaudio[ext=m4a]/bestvideo+bestaudio/best`;
       options.mergeOutputFormat = 'mp4';
 
       try {
-        // Esperamos a que yt-dlp termine de crear el archivo físico
         await ytdl(url.trim(), options);
 
-        // Una vez creado el archivo completo (con imagen y audio), lo enviamos
         res.download(tempPath, (err: any) => {
           if (err) console.error("🔴 Error enviando video:", err);
           
-          // Borramos el temporal inmediatamente
+          // Limpieza post-envío
           if (fs.existsSync(tempPath)) {
             fs.unlinkSync(tempPath);
             console.log("🧹 RyoMixed: Limpieza de temporal completada.");
