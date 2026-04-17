@@ -1,40 +1,62 @@
 import { extractInstagramVideo } from '../extractors/instagram/reel.extractor.js';
 import { extractInstagramPost } from '../extractors/instagram/post.extractor.js';
 import https from 'https';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+// Configuración de rutas para manejo de archivos en el servidor
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const rootPath = path.resolve(__dirname, "../../");
 
 /**
- * Servicio encargado de la lógica de negocio para Instagram.
- * Maneja la extracción de datos y la transmisión de descargas.
+ * SERVICIO DE INSTAGRAM (@RyoMixed)
+ * Maneja la lógica de extracción multiz-fuente y streaming de medios.
  */
 export class InstagramService {
   
+  constructor() {
+    this.syncCookies();
+  }
+
+  /**
+   * Sincroniza las cookies desde las variables de entorno de Railway.
+   * Esto permite que los extractores (yt-dlp) eviten bloqueos de sesión.
+   */
+  private syncCookies() {
+    if (process.env.INSTAGRAM_COOKIES) {
+      const instaCookiesPath = path.join(rootPath, "instagramCook.txt");
+      fs.writeFileSync(instaCookiesPath, process.env.INSTAGRAM_COOKIES);
+      console.log("📸 [InstagramService]: instagramCook.txt generado desde Railway.");
+    }
+  }
+
   /**
    * Obtiene y normaliza la información de un link de Instagram (Reel, Post o Carrusel).
-   * @param url URL original del contenido.
-   * @returns Objeto normalizado con media, títulos y metadatos.
+   * Intenta múltiples métodos de extracción para asegurar la obtención de datos.
    */
   async getInfo(url: string) {
     try {
-      // Limpiamos la URL de parámetros de rastreo (?utm_source, etc)
+      // Limpieza de parámetros de rastreo (?utm_source, etc.)
       const cleanUrl = url.split('?')[0];
-      console.log(`🔎 [Service]: Analizando: ${cleanUrl}`);
+      console.log(`🔎 [Service]: Analizando Instagram: ${cleanUrl}`);
 
       let data: any = null;
 
-      // --- PASO 1: Extracción ---
+      // --- PASO 1: Extracción Primaria (Posts/Carruseles) ---
       try {
-        // Intentamos primero con PostExtractor (mejor para carruseles y fotos)
         data = await extractInstagramPost(cleanUrl);
       } catch (e) {
         console.warn(`⚠️ [Service]: PostExtractor falló, intentando alternativa...`);
       }
 
-      // Si el primero falló o trajo contenido pobre, intentamos con ReelExtractor (yt-dlp)
+      // --- PASO 2: Extracción Secundaria (Reels/yt-dlp) ---
+      // Si el primero falló o no trajo suficiente media, usamos el extractor de Reels
       const isDataEmpty = !data || !data.media || data.media.length === 0;
       if (isDataEmpty || data.media.length <= 1) {
         try {
           const reelData = await extractInstagramVideo(cleanUrl);
-          // Si el extractor de Reels encontró más contenido o el anterior estaba vacío, lo usamos
           if (reelData && (isDataEmpty || reelData.media.length >= data.media.length)) {
             data = reelData;
           }
@@ -43,21 +65,17 @@ export class InstagramService {
         }
       }
 
-      // --- PASO 2: Normalización y Limpieza ---
-      
-      /**
-       * Evita bucles infinitos de proxy. Si el extractor ya devolvió una URL 
-       * con el proxy aplicado, extraemos solo la URL original de Instagram.
-       */
+      // --- PASO 3: Normalización de URLs y Proxies ---
       const ensureOriginalUrl = (urlStr: string): string => {
         if (!urlStr) return "";
+        // Si la URL ya viene con nuestro proxy de imágenes, extraemos la original
         if (urlStr.includes('/api/instagram/proxy/image?url=')) {
           return decodeURIComponent(urlStr.split('?url=')[1]);
         }
         return urlStr;
       };
 
-      // Mapeamos los items de media para asegurar que todos tengan el formato correcto
+      // Mapeo seguro de items de media
       const mediaMapped = data.media.map((item: any) => ({
         ...item,
         thumbnail: ensureOriginalUrl(item.thumbnail),
@@ -66,13 +84,12 @@ export class InstagramService {
 
       const isCarousel = mediaMapped.length > 1;
 
-      // Respuesta final estructurada para el Frontend
+      // Respuesta estructurada para el Frontend
       return {
         platform: 'instagram',
-        // Determinamos el tipo de vista que debe cargar el frontend
         type: isCarousel ? 'carousel' : (mediaMapped[0]?.type === 'video' ? 'video' : 'photo'),
-        title: data.title,
-        sanitizedTitle: data.sanitizedTitle,
+        title: data.title || "Instagram Content",
+        sanitizedTitle: data.sanitizedTitle || "instagram_download",
         author: data.author || 'Instagram_User',
         thumbnail: ensureOriginalUrl(data.thumbnail || mediaMapped[0]?.thumbnail),
         media: mediaMapped,
@@ -82,23 +99,20 @@ export class InstagramService {
 
     } catch (error: any) {
       console.error(`❌ [InstagramService Error]: ${error.message}`);
-      throw new Error("No se pudo obtener información. Verifica que el link sea público.");
+      throw new Error("Contenido no disponible. Verifica que la cuenta sea pública.");
     }
   }
 
   /**
-   * Gestiona la descarga de archivos mediante streaming para no saturar la RAM.
-   * @param url URL directa del recurso (CDN de Instagram).
-   * @param res Objeto Response de Express.
-   * @param sanitizedTitle Título limpio para el archivo.
-   * @param type Tipo de contenido ('video' o 'photo').
+   * Gestiona la descarga de archivos mediante streaming directo desde el CDN de Instagram.
+   * Evita cargar archivos pesados en la RAM del servidor.
    */
   async execDownload(url: string, res: any, sanitizedTitle: string, type: string = 'video') {
     const decodedUrl = decodeURIComponent(url);
     const isVideo = type.toLowerCase() === 'video' || type === 'REEL';
     const extension = isVideo ? 'mp4' : 'jpg';
     
-    // Limpieza de nombre de archivo: quitamos prefijos repetidos y caracteres prohibidos en Windows
+    // Sanitización final del nombre de archivo para evitar caracteres inválidos
     const cleanFileName = sanitizedTitle
         .replace(/\.(mp4|jpg|jpeg|png)$/i, "")
         .replace(/^(Post_|Reel_)+/g, "")
@@ -108,14 +122,14 @@ export class InstagramService {
     const finalFileName = isVideo ? `Reel_${cleanFileName}` : `Post_${cleanFileName}`;
     const encodedName = encodeURIComponent(finalFileName);
 
-    // Configuramos cabeceras para forzar la descarga en el navegador
+    // Configuración de cabeceras para forzar descarga
     res.setHeader('Content-Type', isVideo ? 'video/mp4' : 'image/jpeg');
     res.setHeader(
       'Content-Disposition', 
       `attachment; filename="${encodedName}.${extension}"; filename*=UTF-8''${encodedName}.${extension}`
     );
 
-    // Petición al CDN de Instagram con User-Agent de navegador para evitar el 403
+    // Petición al CDN con User-Agent de navegador para evitar errores 403 (Forbidden)
     https.get(decodedUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
@@ -123,15 +137,15 @@ export class InstagramService {
       }
     }, (stream) => {
       if (stream.statusCode !== 200) {
-        console.error(`❌ [Download]: Instagram respondió con ${stream.statusCode}`);
-        if (!res.headersSent) res.status(500).send("El enlace ha expirado.");
+        console.error(`❌ [Download]: Error de Instagram: ${stream.statusCode}`);
+        if (!res.headersSent) res.status(500).send("El enlace de descarga ha expirado.");
         return;
       }
-      // Conectamos el flujo de Instagram directamente con la respuesta al usuario
+      // Conexión del flujo de datos con la respuesta del cliente
       stream.pipe(res);
     }).on('error', (e) => {
       console.error("❌ [Download Error]:", e.message);
-      if (!res.headersSent) res.status(500).send("Error en la conexión.");
+      if (!res.headersSent) res.status(500).send("Error de conexión con el servidor de medios.");
     });
   }
 }

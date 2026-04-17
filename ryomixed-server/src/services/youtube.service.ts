@@ -10,14 +10,31 @@ const rootPath = path.resolve(__dirname, "../../");
 
 const isProduction = process.env.NODE_ENV === 'production';
 const cookiesPath = path.join(rootPath, "cookies.txt");
+const instaCookiesPath = path.join(rootPath, "instagramCook.txt");
 
 export class YouTubeService {
   private ffmpegPath: string | undefined;
   private ytdl: any;
 
   constructor() {
+    this.syncCookiesFromEnv(); // <-- Nueva función para Railway
     this.setupFFmpeg();
     this.setupYtdl();
+  }
+
+  /**
+   * Crea los archivos .txt físicamente si existen las variables en Railway.
+   * Esto evita tener que subir los archivos al repositorio.
+   */
+  private syncCookiesFromEnv() {
+    if (process.env.YOUTUBE_COOKIES) {
+      fs.writeFileSync(cookiesPath, process.env.YOUTUBE_COOKIES);
+      console.log("🍪 [RyoMixed]: Archivo cookies.txt generado desde Env Var.");
+    }
+    if (process.env.INSTAGRAM_COOKIES) {
+      fs.writeFileSync(instaCookiesPath, process.env.INSTAGRAM_COOKIES);
+      console.log("📸 [RyoMixed]: Archivo instagramCook.txt generado desde Env Var.");
+    }
   }
 
   /**
@@ -26,6 +43,7 @@ export class YouTubeService {
   private setupFFmpeg() {
     const isWin = process.platform === "win32";
     if (isProduction) {
+      // Ruta estándar en Railway según tu setup
       this.ffmpegPath = path.join(rootPath, "bin", "ffmpeg");
       console.log(`🚀 RyoStyle Engine: FFmpeg (Prod) detectado.`);
     } else {
@@ -54,17 +72,11 @@ export class YouTubeService {
     this.ytdl = create(binPath);
   }
 
-  /**
-   * Limpia el título del video para evitar errores en el sistema de archivos.
-   */
   private sanitize(title: string): string {
     const safeTitle = title || "video_ryomixed";
     return safeTitle.replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "_") || "video";
   }
 
-  /**
-   * Extrae metadatos y lista de formatos filtrando solo MP4 progresivos.
-   */
   async getInfo(url: string) {
     if (!url) throw new Error("URL no proporcionada");
 
@@ -108,15 +120,12 @@ export class YouTubeService {
     } catch (error: any) {
       console.error("🔴 [YouTube GetInfo Error]:", error.message);
       if (error.message.includes("confirm you are not a bot")) {
-        throw new Error("Detección de bot: Actualiza cookies.txt.");
+        throw new Error("Detección de bot: Actualiza la variable YOUTUBE_COOKIES en Railway.");
       }
       throw new Error("No se pudo obtener información del video.");
     }
   }
 
-  /**
-   * Ejecuta la descarga. Gestiona streaming para MP3 o descarga temporal para MP4.
-   */
   async execDownload(url: string, formatId: string, res: any) {
     const tempFileName = `ryo_tmp_${Date.now()}.mp4`;
     const tempPath = path.join(rootPath, tempFileName);
@@ -129,7 +138,6 @@ export class YouTubeService {
 
     if (fs.existsSync(cookiesPath)) options.cookies = cookiesPath;
 
-    // Lógica de Audio (Direct Stream)
     if (formatId === 'mp3') {
       options.output = '-';
       options.extractAudio = true;
@@ -140,7 +148,6 @@ export class YouTubeService {
       if (subprocess.stdout) subprocess.stdout.pipe(res);
       return subprocess;
     } 
-    // Lógica de Video (Merge & Download)
     else {
       options.output = tempPath;
       options.format = `${formatId}+bestaudio[ext=m4a]/bestvideo+bestaudio/best`;
