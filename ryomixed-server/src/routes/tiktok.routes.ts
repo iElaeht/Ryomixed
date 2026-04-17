@@ -4,10 +4,23 @@ import { TikTokController } from '../controllers/tiktok.controller.js';
 const router = Router();
 const tiktokController = new TikTokController();
 
-// Esta se queda igual porque el buscador envía un JSON
-router.post('/info', (req, res) => tiktokController.getInfo(req, res));
+/**
+ * RUTAS DE TIKTOK (@RyoMixed)
+ * Bypass de marcas de agua y descarga de carruseles/fotos.
+ */
 
-// CAMBIO CRUCIAL: Cambiar .post por .get para que coincida con el fetch del Flow
-router.get('/download', (req, res) => tiktokController.download(req, res));
+/**
+ * @route   POST /api/tiktok/info
+ * @desc    Obtiene la información del post, autor y links de medios.
+ */
+router.post('/info', tiktokController.getInfo.bind(tiktokController));
+
+/**
+ * @route   GET /api/tiktok/download
+ * @desc    Inicia la descarga directa del video o foto.
+ * @note    Cambiado a GET para permitir que el navegador gestione el stream 
+ * de descarga directamente mediante un enlace dinámico.
+ */
+router.get('/download', tiktokController.download.bind(tiktokController));
 
 export default router;

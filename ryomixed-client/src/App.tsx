@@ -1,16 +1,17 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Nav from './components/ui/Navbar';
 import Footer from './components/ui/Footer';
 import ModalAbout from './components/ui/ModalAbout';
-import YouTubeFlow from './components/YouTubeFlow';
-import TikTokFlow from './components/TikTokFlow';
-import { Search, Loader2, ClipboardPaste, Sparkles } from 'lucide-react';
+import YouTubeFlow from './components/flows/Youtube/YouTubeFlow';
+import TikTokFlow from './components/flows/Tiktok/TikTokFlow';
+import InstagramReel from './components/Instagram/InstagramReel';
+import InstagramPost from './components/Instagram/InstagramPost';
+import { Search, Loader2, ClipboardPaste, X } from 'lucide-react';
+import type { InstagramData } from './types/instagram';
 
-// --- CONFIGURACIÓN ---
 const RENDER_URL = 'https://ryomixed-production.up.railway.app';
 const LOCAL_URL = 'http://localhost:4000';
 
-// --- INTERFACES ---
 interface YouTubeData {
   type: 'youtube';
   title: string;
@@ -31,7 +32,7 @@ interface TikTokData {
   audioUrl?: string;
 }
 
-type RyoData = YouTubeData | TikTokData;
+type RyoData = (YouTubeData | TikTokData | InstagramData) & { platform?: string };
 
 function App() {
   const [url, setUrl] = useState('');
@@ -40,59 +41,87 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
 
-  // --- BLOQUEO DE MODO DESARROLLADOR Y CLICK DERECHO ---
+  const titlePhrases = ["te inspira.", "te hace reír.", "quieres guardar.", "te mueve."];
+  const placeholderPhrases = ["YouTube...", "TikTok...", "Instagram...", "un link..."];
+
+  const [displayText, setDisplayText] = useState('');
+  const [displayPlaceholder, setDisplayPlaceholder] = useState('');
+  const [phraseIndex, setPhraseIndex] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [typingSpeed, setTypingSpeed] = useState(100);
+
   useEffect(() => {
-    const handleContextMenu = (e: MouseEvent) => {
-      e.preventDefault();
+    const currentTitle = titlePhrases[phraseIndex] || "";
+    const currentPlaceholder = placeholderPhrases[phraseIndex] || "";
+    
+    if (!currentTitle) return;
+
+    const handleTyping = () => {
+      if (!isDeleting) {
+        const nextLength = displayText.length + 1;
+        setDisplayText(currentTitle.substring(0, nextLength));
+        
+        const pRatio = Math.ceil((nextLength / currentTitle.length) * currentPlaceholder.length);
+        setDisplayPlaceholder(currentPlaceholder.substring(0, pRatio));
+        
+        setTypingSpeed(100);
+
+        if (displayText === currentTitle) {
+          setTimeout(() => setIsDeleting(true), 2000); 
+        }
+      } else {
+        const nextLength = displayText.length - 1;
+        setDisplayText(currentTitle.substring(0, nextLength));
+        
+        const pRatio = Math.ceil((nextLength / currentTitle.length) * currentPlaceholder.length);
+        setDisplayPlaceholder(currentPlaceholder.substring(0, pRatio));
+        
+        setTypingSpeed(50);
+
+        if (displayText === '') {
+          setIsDeleting(false);
+          setPhraseIndex((prev) => (prev + 1) % titlePhrases.length);
+        }
+      }
     };
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Bloquear F12
-      if (e.key === 'F12') e.preventDefault();
-      // Bloquear Ctrl+Shift+I (Inspeccionar)
-      if (e.ctrlKey && e.shiftKey && e.key === 'I') e.preventDefault();
-      // Bloquear Ctrl+Shift+J (Consola)
-      if (e.ctrlKey && e.shiftKey && e.key === 'J') e.preventDefault();
-      // Bloquear Ctrl+U (Ver código fuente)
-      if (e.ctrlKey && e.key === 'u') e.preventDefault();
+    const timer = setTimeout(handleTyping, typingSpeed);
+    return () => clearTimeout(timer);
+  }, [displayText, isDeleting, phraseIndex]);
+
+  const isDevMode = false;
+  useEffect(() => {
+    if (isDevMode) return;
+    const prevent = (e: Event) => e.preventDefault();
+    document.addEventListener('contextmenu', prevent);
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) || (e.ctrlKey && e.key === 'u')) e.preventDefault();
     };
-
-    document.addEventListener('contextmenu', handleContextMenu);
-    document.addEventListener('keydown', handleKeyDown);
-
+    document.addEventListener('keydown', handleKey);
     return () => {
-      document.removeEventListener('contextmenu', handleContextMenu);
-      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('contextmenu', prevent);
+      document.removeEventListener('keydown', handleKey);
     };
-  }, []);
+  }, [isDevMode]);
 
-  // Base de la API dinámica mejorada
-  const apiBaseUrl = useMemo(() => 
-    window.location.hostname === 'localhost' ? LOCAL_URL : RENDER_URL
-  , []);
-
-  const handlePaste = useCallback(async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      setUrl(text);
-    } catch (err) {
-      console.error('Error al acceder al portapapeles:', err);
-    }
-  }, []);
+  const apiBaseUrl = useMemo(() => window.location.hostname === 'localhost' ? LOCAL_URL : RENDER_URL, []);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanUrl = url.trim().split(/\s+/).find(part => part.includes('http'));
+    const cleanUrl = url.trim().split(/\s+/).find(p => p.includes('http'));
     if (!cleanUrl) return;
 
     const isYouTube = cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be');
+    const isInstagram = cleanUrl.includes('instagram.com');
     
     setLoading(true);
     setVideoData(null); 
     setActiveUrl(cleanUrl); 
 
     try {
-      const endpoint = isYouTube ? '/api/youtube/info' : '/api/tiktok/info';
+      let endpoint = '/api/tiktok/info';
+      if (isYouTube) endpoint = '/api/youtube/info';
+      if (isInstagram) endpoint = '/api/instagram/info';
 
       const response = await fetch(`${apiBaseUrl}${endpoint}`, {
         method: 'POST',
@@ -100,73 +129,74 @@ function App() {
         body: JSON.stringify({ url: cleanUrl })
       });
 
+      if (!response.ok) throw new Error(`Error ${response.status}`);
       const responseData = await response.json();
       
       if (responseData.success && responseData.data) {
-        const info = responseData.data;
-
         setVideoData({
-          ...info,
-          type: isYouTube ? 'youtube' : info.type,
-          sanitizedTitle: info.sanitizedTitle || info.title.replace(/[^\w\s]/gi, '').replace(/\s+/g, '_'),
+          ...responseData.data,
+          platform: isYouTube ? 'youtube' : isInstagram ? 'instagram' : 'tiktok'
         });
       } else {
-        throw new Error(responseData.message || "No se pudo obtener la información.");
+        throw new Error(responseData.message || "Error al procesar.");
       }
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Error de conexión con el servidor.";
-      console.error("🔴 [App Search Error]:", errorMessage);
-      alert(errorMessage);
+      if (error instanceof Error) {
+        alert(error.message);
+      } else {
+        alert("Error desconocido");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#0a0f1a] text-white selection:bg-blue-500/30 overflow-x-hidden">
+    <div className="flex flex-col min-h-screen bg-[#0a0f1a] text-white selection:bg-blue-500/30 font-sans">
       <Nav onOpenAbout={() => setIsAboutOpen(true)} />
       
-      <main className="flex-grow flex flex-col items-center px-6 pt-12 md:pt-16 pb-20">
-        <div className="w-full max-w-4xl text-center flex flex-col items-center">
+      <main className="flex-grow flex flex-col items-center px-4 pt-16 md:pt-24 pb-20">
+        <div className="w-full max-w-4xl text-center">
           
-          {/* Header Hero */}
-          <div className="space-y-6 mb-12 animate-in fade-in slide-in-from-top-4 duration-700">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-[10px] font-black uppercase tracking-[0.3em] text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
-              <Sparkles className="w-3 h-3" /> RyoMixed MultiPlataforma
-            </div>
-            <h1 className="text-5xl md:text-7xl font-black tracking-tighter leading-tight">
-              Tus momentos, <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-300 to-blue-500">
-                en tus manos.
+          <div className="mb-14 h-[110px] sm:h-[150px] flex flex-col justify-center">
+            <h1 className="text-4xl xs:text-5xl md:text-7xl font-black tracking-tighter leading-[1.1]">
+              Descarga lo que <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-300 to-blue-500 inline-block min-h-[1.2em]">
+                {displayText}
+                <span className="ml-1 border-r-4 border-blue-500 animate-pulse"></span>
               </span>
             </h1>
           </div>
 
-          {/* Buscador */}
-          <form onSubmit={handleSearch} className="w-full max-w-3xl flex flex-col items-center gap-6 mb-12">
+          <form onSubmit={handleSearch} className="w-full max-w-3xl mx-auto flex flex-col items-center gap-6 mb-10">
             <div className="group relative w-full">
-              <div className="absolute -inset-1 bg-gradient-to-r from-blue-600/20 to-cyan-500/20 rounded-[2rem] blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
+              <div className="absolute -inset-1 bg-gradient-to-r from-blue-600/20 to-cyan-500/20 rounded-[1.5rem] sm:rounded-[2rem] blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
               
-              <div className="relative flex items-center bg-blue-950/20 backdrop-blur-md border border-white/5 rounded-[2rem] p-2 transition-all group-focus-within:border-blue-500/50 shadow-2xl">
-                <div className="pl-5 text-blue-400/50 hidden md:block">
-                  <Search className="w-6 h-6" />
-                </div>
-                
+              <div className="relative flex items-center bg-blue-950/20 backdrop-blur-xl border border-white/5 rounded-[1.5rem] sm:rounded-[2rem] p-1.5 sm:p-2 shadow-2xl">
                 <input 
                   type="text"
-                  placeholder="Pega el link de YouTube o TikTok..."
+                  placeholder={`Pega link de ${displayPlaceholder}`}
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  className="flex-grow bg-transparent border-none focus:ring-0 text-white placeholder:text-gray-600 font-medium py-5 px-4 text-base md:text-lg outline-none"
+                  className="flex-grow bg-transparent border-none focus:ring-0 text-white py-4 sm:py-5 px-4 sm:px-6 outline-none text-sm sm:text-base transition-all placeholder:text-gray-500/60 placeholder:italic"
                 />
-                
+
+                {url && (
+                  <button type="button" onClick={() => setUrl('')} className="p-2 text-gray-500 hover:text-white transition-colors mr-1">
+                    <X className="w-5 h-5" />
+                  </button>
+                )}
+
                 <button 
                   type="button" 
-                  onClick={handlePaste} 
-                  className="mr-2 flex items-center gap-2 px-4 py-3 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/10 text-blue-400 transition-all active:scale-95 group/btn"
+                  onClick={async () => {
+                    const text = await navigator.clipboard.readText();
+                    setUrl(text);
+                  }} 
+                  className="flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all active:scale-95"
                 >
-                  <ClipboardPaste className="w-5 h-5" />
-                  <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">Pegar</span>
+                  <ClipboardPaste className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span className="text-[10px] font-black uppercase tracking-widest hidden xs:inline">Pegar</span>
                 </button>
               </div>
             </div>
@@ -174,21 +204,26 @@ function App() {
             <button 
               type="submit" 
               disabled={loading || !url.trim()} 
-              className="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800/50 disabled:text-gray-500 px-10 py-4 rounded-xl font-black text-xs uppercase tracking-[0.2em] flex items-center gap-3 shadow-lg shadow-blue-900/20 transition-all active:scale-95"
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 px-10 py-4 rounded-xl font-black text-[10px] sm:text-xs uppercase tracking-[0.2em] flex justify-center items-center gap-3 transition-all shadow-lg active:scale-95 disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
               {loading ? 'Analizando...' : 'Buscar Contenido'}
             </button>
           </form>
 
-          {/* Renderizado de Flujos */}
-          <div className="w-full mt-4 flex justify-center pb-20">
+          <div className="w-full flex justify-center pb-20 animate-in fade-in zoom-in-95 duration-500">
             {videoData && (
-              videoData.type === 'youtube' ? (
-                <YouTubeFlow data={videoData} originalUrl={activeUrl} />
-              ) : (
-                <TikTokFlow data={videoData} originalUrl={activeUrl} />
-              )
+              <>
+                {videoData.platform === 'youtube' && <YouTubeFlow data={videoData as YouTubeData} originalUrl={activeUrl} />}
+                {videoData.platform === 'tiktok' && <TikTokFlow data={videoData as TikTokData} originalUrl={activeUrl} />}
+                {videoData.platform === 'instagram' && (
+                  (videoData as InstagramData).media.length > 1 ? (
+                    <InstagramPost data={videoData as InstagramData} />
+                  ) : (
+                    videoData.type === 'video' ? <InstagramReel data={videoData as InstagramData} /> : <InstagramPost data={videoData as InstagramData} />
+                  )
+                )}
+              </>
             )}
           </div>
         </div>

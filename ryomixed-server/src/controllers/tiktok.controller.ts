@@ -4,7 +4,15 @@ import axios from 'axios';
 
 const tkService = new TikTokService();
 
+/**
+ * CONTROLADOR DE TIKTOK (@RyoMixed)
+ * Encargado de servir el contenido extraído por la API de TikWM.
+ */
 export class TikTokController {
+    
+    /**
+     * Obtiene info del TikTok (Video o Fotos).
+     */
     async getInfo(req: Request, res: Response) {
         try {
             const { url } = req.body;
@@ -17,34 +25,49 @@ export class TikTokController {
         }
     }
 
+    /**
+     * Realiza el pipe del stream desde los servidores de TikTok al cliente.
+     */
     async download(req: Request, res: Response) {
         try {
-            const { url, title, type } = req.query; // Uso de query para mayor estabilidad en streams
-            if (!url) return res.status(400).send("Falta la URL");
+            const { url, title, type } = req.query; 
+            if (!url) return res.status(400).send("Falta la URL de origen.");
 
+            // Determinación de extensión y tipo
             let ext = 'mp4';
             let contentType = 'video/mp4';
-            if (type === 'audio') { ext = 'mp3'; contentType = 'audio/mpeg'; }
-            if (type === 'photos') { ext = 'jpg'; contentType = 'image/jpeg'; }
+            
+            if (type === 'audio') { 
+                ext = 'mp3'; 
+                contentType = 'audio/mpeg'; 
+            } else if (type === 'photos') { 
+                ext = 'jpg'; 
+                contentType = 'image/jpeg'; 
+            }
 
-            const safeTitle = String(title || 'RyoMixed_Media').replace(/[^a-zA-Z0-9]/g, '_');
+            const safeTitle = String(title || 'TikTok_RyoMixed').replace(/[^a-zA-Z0-9]/g, '_');
+            const encodedName = encodeURIComponent(safeTitle);
 
+            // Petición de stream a la CDN de TikTok
             const response = await axios({
                 method: 'get',
                 url: url as string,
                 responseType: 'stream',
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
-                }
+                },
+                timeout: 20000 // Timeout extendido para streams
             });
 
             res.setHeader('Content-Type', contentType);
-            res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}.${ext}"`);
+            res.setHeader('Content-Disposition', `attachment; filename="${encodedName}.${ext}"; filename*=UTF-8''${encodedName}.${ext}`);
 
+            // Conexión directa: CDN -> Backend -> Cliente
             response.data.pipe(res);
+
         } catch (error: any) {
-            console.error("❌ [TK Download Error]:", error.message);
-            if (!res.headersSent) res.status(500).send("Error en la descarga");
+            console.error("❌ [TikTokController Download]:", error.message);
+            if (!res.headersSent) res.status(500).send("Error al canalizar la descarga.");
         }
     }
 }

@@ -4,57 +4,67 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
 
-// Configuración de rutas básicas
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootPath = path.resolve(__dirname, "../../");
 
 const isProduction = process.env.NODE_ENV === 'production';
-
-/**
- * CONFIGURACIÓN DE RUTAS PARA RAILWAY
- * En Railway, las cookies estarán en la raíz del servidor.
- */
 const cookiesPath = path.join(rootPath, "cookies.txt");
-
-const isWin = process.platform === "win32";
-const binPath = path.join(
-  rootPath,
-  "node_modules",
-  "youtube-dl-exec",
-  "bin",
-  isWin ? "yt-dlp.exe" : "yt-dlp",
-);
-
-// Inicialización de la instancia de yt-dlp
-const ytdl = create(binPath);
 
 export class YouTubeService {
   private ffmpegPath: string | undefined;
+  private ytdl: any;
 
   constructor() {
-    /**
-     * VINCULACIÓN DE FFMPEG
-     * En producción usamos la carpeta /bin generada por install-ffmpeg.cjs
-     */
+    this.setupFFmpeg();
+    this.setupYtdl();
+  }
+
+  /**
+   * Localiza el binario de FFmpeg según el sistema operativo y entorno.
+   */
+  private setupFFmpeg() {
+    const isWin = process.platform === "win32";
     if (isProduction) {
       this.ffmpegPath = path.join(rootPath, "bin", "ffmpeg");
-      console.log(`🚀 RyoStyle Engine: FFmpeg (Prod) vinculado en ${this.ffmpegPath}`);
+      console.log(`🚀 RyoStyle Engine: FFmpeg (Prod) detectado.`);
     } else {
       try {
         this.ffmpegPath = execSync(isWin ? "where ffmpeg" : "which ffmpeg")
           .toString().trim().split("\r\n")[0];
-        console.log(`🚀 RyoStyle Engine: FFmpeg (Local) vinculado en ${this.ffmpegPath}`);
+        console.log(`🚀 RyoStyle Engine: FFmpeg (Local) detectado.`);
       } catch (e) {
-        console.error("⚠️ FFmpeg no detectado localmente.");
+        console.warn("⚠️ [YouTubeService]: FFmpeg no encontrado localmente.");
       }
     }
   }
 
-  private sanitize(title: string): string {
-    return title.replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "_");
+  /**
+   * Inicializa yt-dlp vinculando el binario correcto desde node_modules.
+   */
+  private setupYtdl() {
+    const isWin = process.platform === "win32";
+    const binPath = path.join(
+      rootPath,
+      "node_modules",
+      "youtube-dl-exec",
+      "bin",
+      isWin ? "yt-dlp.exe" : "yt-dlp",
+    );
+    this.ytdl = create(binPath);
   }
 
+  /**
+   * Limpia el título del video para evitar errores en el sistema de archivos.
+   */
+  private sanitize(title: string): string {
+    const safeTitle = title || "video_ryomixed";
+    return safeTitle.replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "_") || "video";
+  }
+
+  /**
+   * Extrae metadatos y lista de formatos filtrando solo MP4 progresivos.
+   */
   async getInfo(url: string) {
     if (!url) throw new Error("URL no proporcionada");
 
@@ -65,17 +75,15 @@ export class YouTubeService {
       addHeader: ["Accept-Language: es-ES,es;q=0.9"],
     };
 
-    // Aplicar cookies si el archivo existe
     if (fs.existsSync(cookiesPath)) {
       options.cookies = cookiesPath;
-      console.log("🍪 Cookies detectadas y aplicadas al extractor.");
-    } else {
-      console.warn("⚠️ No se encontró cookies.txt, las peticiones podrían fallar.");
+      console.log("🍪 [YouTube]: Usando cookies.txt");
     }
 
     try {
-      const output: any = await ytdl(url.trim(), options);
-      
+      const output: any = await this.ytdl(url.trim(), options);
+      const rawTitle = output.title || "YouTube Video";
+
       const formats = (output.formats || [])
         .filter((f: any) => f.vcodec !== "none" && f.ext === "mp4" && (f.format_note || f.height))
         .map((f: any) => ({
@@ -90,21 +98,27 @@ export class YouTubeService {
 
       return {
         type: "youtube",
-        title: output.title,
-        sanitizedTitle: this.sanitize(output.title || "video"),
-        author: output.uploader || "Canal",
+        title: rawTitle,
+        sanitizedTitle: this.sanitize(rawTitle),
+        author: output.uploader || "YouTube Artist",
         thumbnail: output.thumbnail || "",
         duration: Number(output.duration || 0),
         formats: formats,
       };
     } catch (error: any) {
-      console.error("🔴 Error en GetInfo:", error.message);
-      throw new Error("No se pudo obtener la información de YouTube.");
+      console.error("🔴 [YouTube GetInfo Error]:", error.message);
+      if (error.message.includes("confirm you are not a bot")) {
+        throw new Error("Detección de bot: Actualiza cookies.txt.");
+      }
+      throw new Error("No se pudo obtener información del video.");
     }
   }
 
+  /**
+   * Ejecuta la descarga. Gestiona streaming para MP3 o descarga temporal para MP4.
+   */
   async execDownload(url: string, formatId: string, res: any) {
-    const tempFileName = `ryo_download_${Date.now()}.mp4`;
+    const tempFileName = `ryo_tmp_${Date.now()}.mp4`;
     const tempPath = path.join(rootPath, tempFileName);
 
     const options: any = {
@@ -115,35 +129,33 @@ export class YouTubeService {
 
     if (fs.existsSync(cookiesPath)) options.cookies = cookiesPath;
 
+    // Lógica de Audio (Direct Stream)
     if (formatId === 'mp3') {
       options.output = '-';
       options.extractAudio = true;
       options.audioFormat = 'mp3';
       options.format = 'bestaudio/best';
       
-      const subprocess = ytdl.exec(url.trim(), options);
+      const subprocess = this.ytdl.exec(url.trim(), options);
       if (subprocess.stdout) subprocess.stdout.pipe(res);
       return subprocess;
-    } else {
-      // Configuración robusta para video (Audio + Video)
+    } 
+    // Lógica de Video (Merge & Download)
+    else {
       options.output = tempPath;
       options.format = `${formatId}+bestaudio[ext=m4a]/bestvideo+bestaudio/best`;
       options.mergeOutputFormat = 'mp4';
 
       try {
-        await ytdl(url.trim(), options);
+        await this.ytdl(url.trim(), options);
 
         res.download(tempPath, (err: any) => {
-          if (err) console.error("🔴 Error enviando video:", err);
-          
-          // Limpieza post-envío
-          if (fs.existsSync(tempPath)) {
-            fs.unlinkSync(tempPath);
-            console.log("🧹 RyoMixed: Limpieza de temporal completada.");
-          }
+          if (err) console.error("🔴 Error en descarga:", err);
+          if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
         });
       } catch (error: any) {
         if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+        console.error("🔴 [YouTube Exec Error]:", error.message);
         throw error;
       }
     }

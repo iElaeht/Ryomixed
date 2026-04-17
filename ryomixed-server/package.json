@@ -2,13 +2,13 @@
   "name": "ryomixed-server",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/app.js",
   "type": "module",
-"scripts": {
+  "scripts": {
     "postinstall": "node install-ffmpeg.cjs",
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch src/app.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/app.js"
   },
   "keywords": [],
   "author": "",
@@ -31,6 +31,7 @@
     "dotenv": "^17.4.1",
     "express": "^4.21.2",
     "ffbinaries": "^1.1.6",
-    "youtube-dl-exec": "^3.1.4"
+    "instagram-url-direct": "^2.0.7",
+    "youtube-dl-exec": "^3.1.5"
   }
 }

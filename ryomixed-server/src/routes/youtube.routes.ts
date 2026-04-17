@@ -5,17 +5,22 @@ const router = Router();
 const youtubeController = new YouTubeController();
 
 /**
- * RUTA: POST /api/youtube/info
- * DESCRIPCIÓN: Recibe una URL y devuelve los metadatos (título, duración, calidades).
- * DETALLE: Es el primer paso cuando el usuario hace clic en "Buscar".
+ * RUTAS DE YOUTUBE (@RyoMixed)
+ * Maneja la integración con yt-dlp y el procesamiento de FFmpeg.
  */
-router.post('/info', (req, res) => youtubeController.getInfo(req, res));
 
 /**
- * RUTA: POST /api/youtube/download
- * DESCRIPCIÓN: Inicia el flujo de descarga de video o audio MP3.
- * DETALLE: Se dispara cuando el usuario hace clic en "Continuar a descarga".
+ * @route   POST /api/youtube/info
+ * @desc    Extrae metadatos y lista de formatos (calidades) disponibles.
+ * @access  Público
  */
-router.post('/download', (req, res) => youtubeController.download(req, res));
+router.post('/info', youtubeController.getInfo.bind(youtubeController));
+
+/**
+ * @route   POST /api/youtube/download
+ * @desc    Procesa y sirve el archivo final (MP4 con merge o MP3).
+ * @note    Se usa POST aquí porque el frontend envía el objeto de formato elegido.
+ */
+router.post('/download', youtubeController.download.bind(youtubeController));
 
 export default router;

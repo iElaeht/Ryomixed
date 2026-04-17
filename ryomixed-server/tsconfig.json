@@ -9,17 +9,17 @@
     "moduleResolution": "NodeNext",
     "target": "ESNext",
     "lib": ["ESNext"],
-    "types": ["node", "express", "cors"], // <--- Agregamos express y cors aquí
+    "types": ["node", "express", "cors"],
 
     /* Other Outputs */
     "sourceMap": true,
     "declaration": true,
 
     /* Ajustes para evitar fallos en Render */
-    "strict": false,                 // <--- Cambiado a false para que sea más permisivo
-    "noImplicitAny": false,          // <--- IMPORTANTE: Esto silencia los errores de req/res
+    "strict": false,
+    "noImplicitAny": false,
     "esModuleInterop": true,
-    "skipLibCheck": true,            // <--- Evita errores en librerías de terceros
+    "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "moduleDetection": "force"
   },
