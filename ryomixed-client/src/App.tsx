@@ -89,6 +89,7 @@ function App() {
     return () => clearTimeout(timer);
   }, [displayText, isDeleting, phraseIndex]);
 
+ //Modo Produccion 
   const isDevMode = false;
   useEffect(() => {
     if (isDevMode) return;

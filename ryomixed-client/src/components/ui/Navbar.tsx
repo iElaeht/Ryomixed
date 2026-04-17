@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Zap, Info, Sparkles } from 'lucide-react';
+import { Zap, Info, Sparkles, Coffee } from 'lucide-react'; // Añadimos Coffee
 import AnunciosModal from './AnunciosModal';
 
 interface NavProps {
@@ -10,7 +10,6 @@ const Nav: React.FC<NavProps> = ({ onOpenAbout }) => {
   const [isAnunciosOpen, setIsAnunciosOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
 
-  // 🔄 DETECTOR DE SCROLL: Cambia el estado si el usuario baja más de 20px
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
@@ -19,12 +18,8 @@ const Nav: React.FC<NavProps> = ({ onOpenAbout }) => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // 🚀 FUNCIÓN SCROLL TO TOP: Regresa al inicio con suavidad
   const scrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -38,7 +33,6 @@ const Nav: React.FC<NavProps> = ({ onOpenAbout }) => {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex justify-between items-center transition-all duration-500">
           
-          {/* LOGO INTERACTIVO: Click para subir */}
           <div 
             onClick={scrollToTop}
             className="flex items-center gap-2 group cursor-pointer select-none active:scale-90 transition-transform"
@@ -58,9 +52,22 @@ const Nav: React.FC<NavProps> = ({ onOpenAbout }) => {
             </div>
           </div>
 
-          {/* ACCIONES */}
           <div className="flex items-center gap-1 sm:gap-4">
             
+            {/* NUEVO BOTÓN: APOYAR (KO-FI) */}
+            <a 
+              href="https://ko-fi.com/elaehtdev" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-[9px] sm:text-[10px] font-black text-gray-400 hover:text-white hover:bg-white/5 transition-all uppercase tracking-[0.2em] group"
+            >
+              <Coffee className="w-3.5 h-3.5 text-amber-400 shrink-0 group-hover:animate-bounce" />
+              <span className="hidden sm:inline">¿Te gustaría apoyar?</span>
+              <span className="sm:hidden inline">Apoyar</span>
+            </a>
+
+            <div className="w-px h-4 bg-white/10 mx-1" />
+
             {/* BOTÓN NOVEDADES */}
             <button 
               onClick={() => setIsAnunciosOpen(true)}
@@ -68,7 +75,6 @@ const Nav: React.FC<NavProps> = ({ onOpenAbout }) => {
             >
               <Sparkles className="w-3.5 h-3.5 text-blue-500 shrink-0" />
               <span className="hidden xs:inline">Novedades</span>
-              
               <span className="absolute top-2 right-1 sm:right-2 flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
@@ -90,7 +96,6 @@ const Nav: React.FC<NavProps> = ({ onOpenAbout }) => {
         </div>
       </nav>
 
-      {/* Espaciador para que el contenido no empiece debajo del Nav fixed */}
       <div className="h-20 sm:h-24" />
 
       <AnunciosModal 
