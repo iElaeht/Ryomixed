@@ -1,3 +1,4 @@
+bin/
 # --- DEPENDENCIAS ---
 node_modules/
 .pnp
