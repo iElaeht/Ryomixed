@@ -2,12 +2,19 @@ import { useState, useMemo, useEffect } from 'react';
 import Nav from './components/ui/Navbar';
 import Footer from './components/ui/Footer';
 import ModalAbout from './components/ui/ModalAbout';
+
+// FLOWS Y COMPONENTES
 import YouTubeFlow from './components/flows/Youtube/YouTubeFlow';
-import TikTokFlow from './components/flows/Tiktok/TikTokFlow';
+import TiktokReel from './components/Tiktok/TiktokReel';
+import TiktokPost from './components/Tiktok/TiktokPost'; // ✅ NUEVO IMPORT
 import InstagramReel from './components/Instagram/InstagramReel';
 import InstagramPost from './components/Instagram/InstagramPost';
+
 import { Search, Loader2, ClipboardPaste, X } from 'lucide-react';
+
+// TYPES
 import type { InstagramData } from './types/instagram';
+import type { TikTokMedia } from './types/tiktok';
 
 const RENDER_URL = 'https://ryomixed-production.up.railway.app';
 const LOCAL_URL = 'http://localhost:4000';
@@ -22,17 +29,7 @@ interface YouTubeData {
   formats: Array<{ id: string; label: string; ext: string; filesize?: string }>;
 }
 
-interface TikTokData {
-  type: 'video' | 'photos';
-  title: string;
-  sanitizedTitle: string; 
-  author: string;
-  thumbnail: string;
-  urls: string[];
-  audioUrl?: string;
-}
-
-type RyoData = (YouTubeData | TikTokData | InstagramData) & { platform?: string };
+type RyoData = (YouTubeData | TikTokMedia | InstagramData) & { platform?: string };
 
 function App() {
   const [url, setUrl] = useState('');
@@ -41,6 +38,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
 
+  // --- Lógica de Animación de Títulos ---
   const titlePhrases = ["te inspira.", "te hace reír.", "quieres guardar.", "te mueve."];
   const placeholderPhrases = ["YouTube...", "TikTok...", "Instagram...", "un link..."];
 
@@ -54,30 +52,20 @@ function App() {
     const currentTitle = titlePhrases[phraseIndex] || "";
     const currentPlaceholder = placeholderPhrases[phraseIndex] || "";
     
-    if (!currentTitle) return;
-
     const handleTyping = () => {
       if (!isDeleting) {
         const nextLength = displayText.length + 1;
         setDisplayText(currentTitle.substring(0, nextLength));
-        
         const pRatio = Math.ceil((nextLength / currentTitle.length) * currentPlaceholder.length);
         setDisplayPlaceholder(currentPlaceholder.substring(0, pRatio));
-        
         setTypingSpeed(100);
-
-        if (displayText === currentTitle) {
-          setTimeout(() => setIsDeleting(true), 2000); 
-        }
+        if (displayText === currentTitle) setTimeout(() => setIsDeleting(true), 2000);
       } else {
         const nextLength = displayText.length - 1;
         setDisplayText(currentTitle.substring(0, nextLength));
-        
         const pRatio = Math.ceil((nextLength / currentTitle.length) * currentPlaceholder.length);
         setDisplayPlaceholder(currentPlaceholder.substring(0, pRatio));
-        
         setTypingSpeed(50);
-
         if (displayText === '') {
           setIsDeleting(false);
           setPhraseIndex((prev) => (prev + 1) % titlePhrases.length);
@@ -89,24 +77,9 @@ function App() {
     return () => clearTimeout(timer);
   }, [displayText, isDeleting, phraseIndex]);
 
- //Modo Produccion 
-  const isDevMode = false;
-  useEffect(() => {
-    if (isDevMode) return;
-    const prevent = (e: Event) => e.preventDefault();
-    document.addEventListener('contextmenu', prevent);
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) || (e.ctrlKey && e.key === 'u')) e.preventDefault();
-    };
-    document.addEventListener('keydown', handleKey);
-    return () => {
-      document.removeEventListener('contextmenu', prevent);
-      document.removeEventListener('keydown', handleKey);
-    };
-  }, [isDevMode]);
-
   const apiBaseUrl = useMemo(() => window.location.hostname === 'localhost' ? LOCAL_URL : RENDER_URL, []);
 
+  // --- Handlers ---
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanUrl = url.trim().split(/\s+/).find(p => p.includes('http'));
@@ -143,7 +116,7 @@ function App() {
       }
     } catch (error: unknown) {
       if (error instanceof Error) {
-        alert(error.message);
+        alert(error.message || "Error desconocido");
       } else {
         alert("Error desconocido");
       }
@@ -215,8 +188,17 @@ function App() {
           <div className="w-full flex justify-center pb-20 animate-in fade-in zoom-in-95 duration-500">
             {videoData && (
               <>
+                {/* YOUTUBE */}
                 {videoData.platform === 'youtube' && <YouTubeFlow data={videoData as YouTubeData} originalUrl={activeUrl} />}
-                {videoData.platform === 'tiktok' && <TikTokFlow data={videoData as TikTokData} originalUrl={activeUrl} />}
+
+                {/* TIKTOK (Sistema Discriminador de Tipo) */}
+                {videoData.platform === 'tiktok' && (
+                  (videoData as TikTokMedia).type === 'photos' 
+                    ? <TiktokPost data={videoData as TikTokMedia} /> 
+                    : <TiktokReel data={videoData as TikTokMedia} />
+                )}
+
+                {/* INSTAGRAM */}
                 {videoData.platform === 'instagram' && (
                   (videoData as InstagramData).media.length > 1 ? (
                     <InstagramPost data={videoData as InstagramData} />

@@ -41,7 +41,7 @@ export class TikTokController {
                 ext = 'mp3'; 
                 contentType = 'audio/mpeg'; 
             } else if (type === 'photos') { 
-                ext = 'jpg'; 
+                ext = 'jpg'; // O 'png' según devuelva la API
                 contentType = 'image/jpeg'; 
             }
 
@@ -54,13 +54,19 @@ export class TikTokController {
                 url: url as string,
                 responseType: 'stream',
                 headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+                    'Referer': 'https://www.tiktok.com/' // TikTok a veces bloquea si no hay referer
                 },
-                timeout: 20000 // Timeout extendido para streams
+                timeout: 30000 // Aumentado a 30s para carruseles pesados
             });
 
             res.setHeader('Content-Type', contentType);
             res.setHeader('Content-Disposition', `attachment; filename="${encodedName}.${ext}"; filename*=UTF-8''${encodedName}.${ext}`);
+
+            // Manejo de cierre inesperado de la conexión
+            res.on('close', () => {
+                if (response.data) response.data.destroy();
+            });
 
             // Conexión directa: CDN -> Backend -> Cliente
             response.data.pipe(res);

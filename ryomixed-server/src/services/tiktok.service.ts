@@ -1,56 +1,48 @@
 import axios from 'axios';
+import { extractTikTokReel } from '../extractors/tiktok/reelTiktok.extractor.js';
+import { extractTikTokPost } from '../extractors/tiktok/PostTiktok.extractor.js';
 
-/**
- * Estructura de datos para contenido de TikTok
- */
 export interface TikTokMedia {
-  type: 'video' | 'photos';
+  type: 'video' | 'photos'; // Asegúrate de que esto coincida con lo que devuelve el extractor
   title: string;
   sanitizedTitle: string;
   author: string;
   thumbnail: string;
   urls: string[];
   audioUrl?: string;
+  duration?: number;
 }
 
-/**
- * SERVICIO DE TIKTOK (@RyoMixed)
- * Utiliza la API de TikWM para extraer contenido sin marca de agua.
- */
 export class TikTokService {
   
-  /**
-   * Limpia el texto para generar nombres de archivo seguros.
-   * Prioriza el contenido antes de los hashtags.
-   */
-  private sanitize(text: string): string {
-    if (!text) return 'TikTok_Media';
+  private sanitize(text: string, videoId?: string): string {
+    if (!text) return `TikTok_Reel_${videoId?.slice(-6) || 'Media'}`;
+
+    const baseText = text.split('#')[0].trim();
+    let cleanText = baseText
+      .replace(/[^\w\s-]/gi, '') 
+      .replace(/\s+/g, '_')      
+      .trim();
+
+    if (!cleanText || cleanText.length < 2) {
+      const shortId = videoId ? videoId.slice(-10) : Date.now().toString().slice(-6);
+      return `TikTok_Reel_${shortId}`;
+    }
+
+    const shortTitle = cleanText.substring(0, 25);
+    const suffix = videoId ? videoId.slice(-4) : Date.now().toString().slice(-4);
     
-    // Extraemos solo el texto antes del primer hashtag
-    const description = text.split('#')[0].trim() || 'TikTok_Post';
-    
-    return description
-      .replace(/[^\w\s-]/gi, '') // Elimina caracteres especiales
-      .replace(/\s+/g, '_')      // Cambia espacios por guiones bajos
-      .substring(0, 50)          // Límite de 50 caracteres
-      .concat(`_${Date.now().toString().slice(-4)}`); // Sufijo único para evitar colisiones
+    return `${shortTitle}_${suffix}`;
   }
 
-  /**
-   * Obtiene la información del TikTok (Video o Galería de Fotos).
-   * @param url Link de TikTok (Soporta links cortos de móvil y largos de PC).
-   */
   async getInfo(url: string): Promise<TikTokMedia> {
     try {
-      // Normalización de la URL: eliminamos parámetros de rastreo
       const cleanUrl = url.split('?')[0];
       console.log(`🔎 [TikTok Service]: Extrayendo de ${cleanUrl}`);
 
       const response = await axios.post('https://www.tikwm.com/api/', 
-        new URLSearchParams({
-          url: cleanUrl,
-          hd: '1' // Intentamos obtener siempre la versión HD
-        }), {
+        new URLSearchParams({ url: cleanUrl, hd: '1' }), 
+        {
           timeout: 12000,
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         }
@@ -58,37 +50,29 @@ export class TikTokService {
 
       const result = response.data;
 
-      // Validación de respuesta de la API externa
       if (result.code !== 0 || !result.data) {
         throw new Error(result.msg || "El contenido no está disponible o es privado.");
       }
 
       const data = result.data;
+      const videoId = data.id || ''; 
       
-      // Detectamos si es una galería de fotos (carrusel)
       const isPhotos = Array.isArray(data.images) && data.images.length > 0;
-      const displayTitle = data.title || 'TikTok Post';
 
-      return {
-        type: isPhotos ? 'photos' : 'video',
-        title: displayTitle,
-        sanitizedTitle: this.sanitize(displayTitle),
-        author: data.author?.nickname || 'TikTok_Creator',
-        thumbnail: isPhotos ? data.images[0] : (data.cover || ''),
-        // Si hay fotos, las mandamos todas. Si es video, priorizamos el link sin marca de agua (play)
-        urls: isPhotos ? data.images : [data.play || data.wmplay || data.music],
-        audioUrl: data.music || data.music_info?.play || ''
-      };
+      // Usamos "as TikTokMedia" para asegurar la compatibilidad de la interfaz
+      if (isPhotos) {
+        return extractTikTokPost(data, (txt: string) => this.sanitize(txt, videoId)) as TikTokMedia;
+      } else {
+        return extractTikTokReel(data, (txt: string) => this.sanitize(txt, videoId)) as TikTokMedia;
+      }
 
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : "Error de red";
       console.error("❌ [TikTok Service Error]:", errorMsg);
       
-      // Error específico para fallos de conexión con la API proveedora
       if (errorMsg.includes('ENOTFOUND') || errorMsg.includes('timeout')) {
         throw new Error("El motor de extracción de TikTok está saturado. Reintenta en un momento.");
       }
-      
       throw new Error(errorMsg);
     }
   }
