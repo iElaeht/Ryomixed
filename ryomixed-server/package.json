@@ -5,7 +5,7 @@
   "main": "dist/app.js",
   "type": "module",
   "scripts": {
-    "postinstall": "node install-ffmpeg.cjs",
+    "postinstall": "node install-ffmpeg.cjs && npx youtube-dl-exec --download",
     "dev": "tsx watch src/app.ts",
     "build": "tsc",
     "start": "node dist/app.js"

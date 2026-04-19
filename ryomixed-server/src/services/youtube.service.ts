@@ -1,51 +1,50 @@
 import { create } from "youtube-dl-exec";
 import path from "path";
 import fs from "fs";
-import { fileURLToPath } from "url";
 import { execSync } from "child_process";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const rootPath = path.resolve(__dirname, "../../");
-
+const rootPath = process.cwd();
 const isProduction = process.env.NODE_ENV === 'production';
-const cookiesPath = path.join(rootPath, "cookies.txt");
-const instaCookiesPath = path.join(rootPath, "instagramCook.txt");
+
+// --- ESTÁNDAR DE COOKIES UNIFICADO PARA YOUTUBE ---
+const cookiesPath = path.join(rootPath, "YOUTUBE_COOKIES.txt");
 
 export class YouTubeService {
   private ffmpegPath: string | undefined;
   private ytdl: any;
 
   constructor() {
-    this.syncCookiesFromEnv(); // <-- Nueva función para Railway
+    this.syncCookiesFromEnv(); 
     this.setupFFmpeg();
     this.setupYtdl();
   }
 
   /**
-   * Crea los archivos .txt físicamente si existen las variables en Railway.
-   * Esto evita tener que subir los archivos al repositorio.
+   * Sincroniza las cookies de YouTube desde variables de entorno.
    */
   private syncCookiesFromEnv() {
-    if (process.env.YOUTUBE_COOKIES) {
-      fs.writeFileSync(cookiesPath, process.env.YOUTUBE_COOKIES);
-      console.log("🍪 [RyoMixed]: Archivo cookies.txt generado desde Env Var.");
-    }
-    if (process.env.INSTAGRAM_COOKIES) {
-      fs.writeFileSync(instaCookiesPath, process.env.INSTAGRAM_COOKIES);
-      console.log("📸 [RyoMixed]: Archivo instagramCook.txt generado desde Env Var.");
+    const youtubeCookies = process.env.YOUTUBE_COOKIES;
+    
+    if (youtubeCookies && youtubeCookies.trim().length > 0) {
+      try {
+        fs.writeFileSync(cookiesPath, youtubeCookies.trim());
+        console.log("🍪 [YouTubeService]: YOUTUBE_COOKIES.txt sincronizado correctamente.");
+      } catch (error) {
+        console.error("❌ [YouTubeService]: Error escribiendo cookies:", error);
+      }
+    } else if (fs.existsSync(cookiesPath)) {
+      console.log("ℹ️ [YouTubeService]: Usando archivo físico YOUTUBE_COOKIES.txt.");
     }
   }
 
   /**
-   * Localiza el binario de FFmpeg según el sistema operativo y entorno.
+   * Localiza el binario de FFmpeg.
    */
   private setupFFmpeg() {
     const isWin = process.platform === "win32";
     if (isProduction) {
-      // Ruta estándar en Railway según tu setup
-      this.ffmpegPath = path.join(rootPath, "bin", "ffmpeg");
-      console.log(`🚀 RyoStyle Engine: FFmpeg (Prod) detectado.`);
+      this.ffmpegPath = "ffmpeg"; 
+      console.log(`🚀 RyoStyle Engine: FFmpeg (Prod) configurado.`);
     } else {
       try {
         this.ffmpegPath = execSync(isWin ? "where ffmpeg" : "which ffmpeg")
@@ -57,9 +56,6 @@ export class YouTubeService {
     }
   }
 
-  /**
-   * Inicializa yt-dlp vinculando el binario correcto desde node_modules.
-   */
   private setupYtdl() {
     const isWin = process.platform === "win32";
     const binPath = path.join(
@@ -80,6 +76,10 @@ export class YouTubeService {
   async getInfo(url: string) {
     if (!url) throw new Error("URL no proporcionada");
 
+    const cleanUrl = url.trim();
+    // --- LOG DE ANÁLISIS ESTANDARIZADO ---
+    console.log(`🔎 [Service]: Analizando YouTube: ${cleanUrl}`);
+
     const options: any = {
       dumpSingleJson: true,
       noCheckCertificates: true,
@@ -89,12 +89,15 @@ export class YouTubeService {
 
     if (fs.existsSync(cookiesPath)) {
       options.cookies = cookiesPath;
-      console.log("🍪 [YouTube]: Usando cookies.txt");
+      console.log("🍪 [YouTube]: Usando YOUTUBE_COOKIES.txt para la sesión.");
     }
 
     try {
-      const output: any = await this.ytdl(url.trim(), options);
+      const output: any = await this.ytdl(cleanUrl, options);
       const rawTitle = output.title || "YouTube Video";
+
+      // Log adicional para confirmar el hallazgo
+      console.log(`✅ [YouTube]: Contenido encontrado -> ${rawTitle}`);
 
       const formats = (output.formats || [])
         .filter((f: any) => f.vcodec !== "none" && f.ext === "mp4" && (f.format_note || f.height))
@@ -120,7 +123,7 @@ export class YouTubeService {
     } catch (error: any) {
       console.error("🔴 [YouTube GetInfo Error]:", error.message);
       if (error.message.includes("confirm you are not a bot")) {
-        throw new Error("Detección de bot: Actualiza la variable YOUTUBE_COOKIES en Railway.");
+        throw new Error("Detección de bot: Actualiza YOUTUBE_COOKIES.");
       }
       throw new Error("No se pudo obtener información del video.");
     }

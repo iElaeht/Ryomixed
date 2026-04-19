@@ -9,7 +9,12 @@ const rootPath = path.resolve(__dirname, "../../../");
 
 const isWin = process.platform === "win32";
 const binPath = path.join(rootPath, "node_modules", "youtube-dl-exec", "bin", isWin ? "yt-dlp.exe" : "yt-dlp");
-const cookiesPath = path.join(rootPath, "instagramCook.txt");
+
+/**
+ * 🍪 ACTUALIZACIÓN DE COOKIES:
+ * Nombre actualizado para coincidir con tu archivo físico.
+ */
+const cookiesPath = path.join(rootPath, "INSTAGRAM_COOKIES.txt");
 
 const ytdl = create(binPath);
 
@@ -26,11 +31,14 @@ export const extractInstagramVideo = async (url: string) => {
     noWarnings: true,
     ignoreErrors: true,
     noPlaylist: true,
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
     addHeader: ['Referer:https://www.instagram.com/'],
   };
 
-  if (fs.existsSync(cookiesPath)) options.cookies = cookiesPath;
+  if (fs.existsSync(cookiesPath)) {
+    options.cookies = cookiesPath;
+    console.log("🍪 [yt-dlp]: Cargando cookies desde INSTAGRAM_COOKIES.txt");
+  }
 
   try {
     console.log(`🎥 [yt-dlp]: Extrayendo metadatos de Reel -> ${cleanUrl}`);
@@ -68,6 +76,7 @@ export const extractInstagramVideo = async (url: string) => {
         url: bestUrl,
         type: isVideo ? 'video' : 'image',
         ext: isVideo ? 'mp4' : 'jpg',
+        index: index, // Añadido para ayudar a la fusión del Service
         filename: `${sanitizedForFile}${suffix}`, 
         thumbnail: entry.thumbnail || info.thumbnail,
         duration: entry.duration || durationInSeconds 

@@ -33,9 +33,6 @@ ryo_download_*
 *Cook*.txt
 *cookies*.txt
 *Cookies*.json
-instagramCook.txt
-youtubeCookies.json
-twitterCookies.txt
 
 # --- LOGS Y DEPURACIÓN ---
 npm-debug.log*

@@ -85,7 +85,7 @@ const InstagramPost: React.FC<InstagramPostProps> = ({ data }) => {
         <div className="w-full lg:w-2/3 p-4 md:p-8 bg-black/20 border-b lg:border-b-0 lg:border-r border-white/5">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4 max-h-[400px] md:max-h-[550px] overflow-y-auto pr-1 md:pr-2 custom-scrollbar">
             {data.media.map((item, index) => {
-              const proxiedThumb = `${API_CONFIG.BASE_URL}/api/proxy/image?url=${encodeURIComponent(item.thumbnail)}`;
+              const proxiedThumb = `${API_CONFIG.BASE_URL}/api/instagram/proxy/image?url=${encodeURIComponent(item.thumbnail)}`;
               
               return (
                 <div 
