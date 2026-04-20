@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { InstagramService } from '../services/instagram.service.js';
+import { InstagramService } from '../services/Instagram/instagram.service.js';
 import https from 'https';
 import http from 'http';
 
