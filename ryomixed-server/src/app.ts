@@ -41,7 +41,7 @@ app.use(cors({
             'https://ryomixed-client.vercel.app'
         ];
         // Permitimos peticiones sin origen (como Postman) o de dominios autorizados
-        if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+        if (!origin || allowedOrigins.includes(origin) || (origin && origin.endsWith('.vercel.app'))) {
             callback(null, true);
         } else {
             callback(new Error('No permitido por CORS (RyoMixed Security)'));
@@ -72,7 +72,6 @@ app.get('/api/proxy/image', async (req: Request, res: Response) => {
             method: 'GET',
             responseType: 'arraybuffer',
             headers: {
-                // User-Agent real para simular navegación humana
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
                 'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
                 'Referer': 'https://www.instagram.com/'
@@ -80,7 +79,9 @@ app.get('/api/proxy/image', async (req: Request, res: Response) => {
             timeout: 10000 
         });
 
-        const contentType = response.headers['content-type'] || 'image/jpeg';
+        // CORRECCIÓN AQUÍ: Forzamos a String para evitar el error TS2345
+        const contentType = String(response.headers['content-type'] || 'image/jpeg');
+        
         res.set('Content-Type', contentType);
         res.set('Cache-Control', 'public, max-age=86400'); // Cache persistente por 24h
         
