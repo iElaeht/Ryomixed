@@ -27,7 +27,7 @@ ryo_download_*
 *.webm
 *.part
 *.ytdl
-
+data/
 # --- COOKIES Y SESIONES (SEGURIDAD CRÍTICA) ---
 # Bloqueamos cualquier archivo de cookies, sin importar el nombre
 *Cook*.txt

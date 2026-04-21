@@ -5,8 +5,6 @@ import { execSync } from "child_process";
 
 const rootPath = process.cwd();
 const isProduction = process.env.NODE_ENV === 'production';
-
-// --- ESTÁNDAR DE COOKIES UNIFICADO PARA YOUTUBE ---
 const cookiesPath = path.join(rootPath, "YOUTUBE_COOKIES.txt");
 
 export class YouTubeService {
@@ -14,44 +12,39 @@ export class YouTubeService {
   private ytdl: any;
 
   constructor() {
+    console.log(`\n--- 📺 RyoStyle YouTube Engine ---`);
     this.syncCookiesFromEnv(); 
     this.setupFFmpeg();
     this.setupYtdl();
+    console.log(`----------------------------------\n`);
   }
 
-  /**
-   * Sincroniza las cookies de YouTube desde variables de entorno.
-   */
   private syncCookiesFromEnv() {
     const youtubeCookies = process.env.YOUTUBE_COOKIES;
-    
     if (youtubeCookies && youtubeCookies.trim().length > 0) {
       try {
         fs.writeFileSync(cookiesPath, youtubeCookies.trim());
-        console.log("🍪 [YouTubeService]: YOUTUBE_COOKIES.txt sincronizado correctamente.");
+        console.log("🍪 [YouTube]: Cookies sincronizadas desde ENV.");
       } catch (error) {
-        console.error("❌ [YouTubeService]: Error escribiendo cookies:", error);
+        console.error("❌ [YouTube]: Error escribiendo cookies:", error);
       }
     } else if (fs.existsSync(cookiesPath)) {
-      console.log("ℹ️ [YouTubeService]: Usando archivo físico YOUTUBE_COOKIES.txt.");
+      console.log("🍪 [YouTube]: Usando archivo cookies físico.");
     }
   }
 
-  /**
-   * Localiza el binario de FFmpeg.
-   */
   private setupFFmpeg() {
     const isWin = process.platform === "win32";
     if (isProduction) {
       this.ffmpegPath = "ffmpeg"; 
-      console.log(`🚀 RyoStyle Engine: FFmpeg (Prod) configurado.`);
+      console.log(`🚀 [System]: FFmpeg (Production) configurado.`);
     } else {
       try {
         this.ffmpegPath = execSync(isWin ? "where ffmpeg" : "which ffmpeg")
           .toString().trim().split("\r\n")[0];
-        console.log(`🚀 RyoStyle Engine: FFmpeg (Local) detectado.`);
+        console.log(`🚀 [System]: FFmpeg detectado en: ${this.ffmpegPath}`);
       } catch (e) {
-        console.warn("⚠️ [YouTubeService]: FFmpeg no encontrado localmente.");
+        console.warn("⚠️ [System]: FFmpeg no encontrado localmente.");
       }
     }
   }
@@ -73,12 +66,13 @@ export class YouTubeService {
     return safeTitle.replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "_") || "video";
   }
 
-  async getInfo(url: string) {
+async getInfo(url: string) {
     if (!url) throw new Error("URL no proporcionada");
-
     const cleanUrl = url.trim();
-    // --- LOG DE ANÁLISIS ESTANDARIZADO ---
-    console.log(`🔎 [Service]: Analizando YouTube: ${cleanUrl}`);
+
+    // --- SEPARACIÓN VISUAL PARA NUEVA PETICIÓN ---
+    console.log(`\n--- 🔍 NUEVA SOLICITUD DE EXTRACCIÓN ---`);
+    console.log(`🔗 URL: ${cleanUrl}`);
 
     const options: any = {
       dumpSingleJson: true,
@@ -89,15 +83,15 @@ export class YouTubeService {
 
     if (fs.existsSync(cookiesPath)) {
       options.cookies = cookiesPath;
-      console.log("🍪 [YouTube]: Usando YOUTUBE_COOKIES.txt para la sesión.");
     }
 
     try {
       const output: any = await this.ytdl(cleanUrl, options);
       const rawTitle = output.title || "YouTube Video";
 
-      // Log adicional para confirmar el hallazgo
-      console.log(`✅ [YouTube]: Contenido encontrado -> ${rawTitle}`);
+      // Log con check de éxito y espacio
+      console.log(`✅ Título: ${rawTitle}`);
+      console.log(`---------------------------------------\n`);
 
       const formats = (output.formats || [])
         .filter((f: any) => f.vcodec !== "none" && f.ext === "mp4" && (f.format_note || f.height))
@@ -113,6 +107,7 @@ export class YouTubeService {
 
       return {
         type: "youtube",
+        platform: "youtube",
         title: rawTitle,
         sanitizedTitle: this.sanitize(rawTitle),
         author: output.uploader || "YouTube Artist",
@@ -121,17 +116,23 @@ export class YouTubeService {
         formats: formats,
       };
     } catch (error: any) {
-      console.error("🔴 [YouTube GetInfo Error]:", error.message);
+      console.error(`\n🔴 [YouTube Error]: ${error.message}\n`);
       if (error.message.includes("confirm you are not a bot")) {
-        throw new Error("Detección de bot: Actualiza YOUTUBE_COOKIES.");
+        throw new Error("Detección de bot: Actualiza las Cookies.");
       }
-      throw new Error("No se pudo obtener información del video.");
+      throw new Error("Error al analizar el contenido.");
     }
   }
 
   async execDownload(url: string, formatId: string, res: any) {
+    const cleanUrl = url.trim();
     const tempFileName = `ryo_tmp_${Date.now()}.mp4`;
     const tempPath = path.join(rootPath, tempFileName);
+
+    // --- LOG DE DESCARGA DETALLADO ---
+    console.log(`\n📥 [DESCARGA INICIADA]`);
+    console.log(`   🆔 Formato: ${formatId}`);
+    console.log(`   📂 Archivo: ${tempFileName}`);
 
     const options: any = {
       noCheckCertificates: true,
@@ -142,30 +143,45 @@ export class YouTubeService {
     if (fs.existsSync(cookiesPath)) options.cookies = cookiesPath;
 
     if (formatId === 'mp3') {
+      console.log(`   🎵 Extrayendo audio MP3...`);
       options.output = '-';
       options.extractAudio = true;
       options.audioFormat = 'mp3';
       options.format = 'bestaudio/best';
       
-      const subprocess = this.ytdl.exec(url.trim(), options);
+      const subprocess = this.ytdl.exec(cleanUrl, options);
       if (subprocess.stdout) subprocess.stdout.pipe(res);
+      
+      subprocess.on('close', () => {
+        console.log(`✅ [Stream]: Audio enviado con éxito.\n`);
+      });
       return subprocess;
     } 
     else {
+      console.log(`   🎬 Procesando video y audio (FFmpeg)...`);
       options.output = tempPath;
       options.format = `${formatId}+bestaudio[ext=m4a]/bestvideo+bestaudio/best`;
       options.mergeOutputFormat = 'mp4';
 
       try {
-        await this.ytdl(url.trim(), options);
+        await this.ytdl(cleanUrl, options);
+        console.log(`   📦 Mezcla terminada. Enviando al cliente...`);
 
         res.download(tempPath, (err: any) => {
-          if (err) console.error("🔴 Error en descarga:", err);
-          if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+          if (err) {
+            console.error("   🔴 Error en el envío:", err.message);
+          } else {
+            console.log(`✅ [Descarga]: Completada con éxito.`);
+          }
+          
+          if (fs.existsSync(tempPath)) {
+            fs.unlinkSync(tempPath);
+            console.log(`🧹 [Limpiador]: Temporal borrado.\n`);
+          }
         });
       } catch (error: any) {
         if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-        console.error("🔴 [YouTube Exec Error]:", error.message);
+        console.error(`\n🔴 [YouTube Exec Error]: ${error.message}\n`);
         throw error;
       }
     }
