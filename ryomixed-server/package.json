@@ -8,23 +8,23 @@
     "postinstall": "node install-ffmpeg.cjs",
     "dev": "tsx watch src/app.ts",
     "setup-ytdlp": "mkdir -p ./node_modules/youtube-dl-exec/bin && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o ./node_modules/youtube-dl-exec/bin/yt-dlp && chmod a+rx ./node_modules/youtube-dl-exec/bin/yt-dlp",
-    "build": "npm run setup-ytdlp && tsc",
+    "build": "npm run setup-ytdlp && npx tsc",
     "start": "node dist/app.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@types/node": "^20.0.0",
     "nodemon": "^3.1.0",
-    "ts-node": "^10.9.2",
-    "tsx": "^4.7.0",
-    "typescript": "^5.4.5"
+    "ts-node": "^10.9.2"
   },
   "dependencies": {
-    "@distube/ytdl-core": "^4.16.12",
+    "typescript": "^5.4.5",
+    "tsx": "^4.21.0",
+    "@types/node": "^20.0.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
+    "@distube/ytdl-core": "^4.16.12",
     "axios": "^1.6.0",
     "compression": "^1.7.4",
     "cors": "^2.8.5",
