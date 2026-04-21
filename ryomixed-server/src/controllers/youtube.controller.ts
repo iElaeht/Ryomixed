@@ -63,9 +63,9 @@ export class YouTubeController {
 
             /**
              * MONITOREO DE ERRORES EN TIEMPO REAL:
-             * Verificamos que 'stderr' exista y sea una función para evitar errores en logs.
+             * Capturamos el log de error de yt-dlp/ffmpeg para verlo en la consola de Railway.
              */
-            if (subprocess && subprocess.stderr && typeof subprocess.stderr.on === 'function') {
+            if (subprocess && subprocess.stderr) {
                 subprocess.stderr.on('data', (data: any) => {
                     const log = data.toString();
                     // Solo logueamos si es un error real, no advertencias comunes
@@ -100,6 +100,7 @@ export class YouTubeController {
 /**
  * FUNCIÓN DE LIMPIEZA (@RyoMixed)
  * Escanea la raíz del proyecto para borrar archivos temporales que no se eliminaron.
+ * Útil si el servidor se reinicia o falla durante una mezcla de video.
  */
 export const cleanTempFiles = () => {
     const rootPath = process.cwd();
@@ -109,6 +110,7 @@ export const cleanTempFiles = () => {
         console.log("🧹 [RyoMixed Cleaner]: Iniciando limpieza de residuos...");
 
         files.forEach(file => {
+            // Filtramos archivos temporales del sistema
             if (file.startsWith('ryo_tmp_') || file.startsWith('ryo_download_')) {
                 const filePath = path.join(rootPath, file);
                 try {
@@ -116,7 +118,7 @@ export const cleanTempFiles = () => {
                     const now = new Date().getTime();
                     const fileAgeInMinutes = (now - stats.mtimeMs) / (1000 * 60);
 
-                    // Borramos archivos de más de 15 minutos
+                    // Borramos archivos de más de 15 minutos (ya deberían haber terminado)
                     if (fileAgeInMinutes > 15) {
                         fs.unlinkSync(filePath);
                         console.log(`🗑️ Eliminado residuo antiguo: ${file}`);
