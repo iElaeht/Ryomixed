@@ -2,16 +2,18 @@ import { Request, Response } from 'express';
 import { YouTubeService } from '../services/youtube.service.js';
 import fs from 'fs';
 import path from 'path';
+
+// Instanciamos el servicio (esto activa setupFFmpeg y setupYtdl)
 const youtubeService = new YouTubeService();
 
 /**
  * CONTROLADOR DE YOUTUBE (@RyoMixed)
- * Gestiona peticiones de información y orquestación de descargas pesadas.
+ * Gestiona peticiones de información y orquestación de descargas.
  */
 export class YouTubeController {
     
     /**
-     * Obtiene metadatos detallados de un video.
+     * Obtiene metadatos detallados de un video (Título, Formatos, Miniatura).
      */
     async getInfo(req: Request, res: Response) {
         try {
@@ -33,18 +35,20 @@ export class YouTubeController {
     }
 
     /**
-     * Inicia el proceso de descarga/conversión.
+     * Inicia el proceso de descarga o conversión a MP3.
      */
     async download(req: Request, res: Response) {
         const { url, formatId, title, type } = req.body;
 
         try {
             if (!url || !formatId) {
-                return res.status(400).send("Parámetros insuficientes.");
+                return res.status(400).send("Parámetros insuficientes (url y formatId requeridos).");
             }
 
             const isMp3 = type === 'audio' || formatId === 'mp3';
             const fileName = `${title || 'RyoMixed_Media'}.${isMp3 ? 'mp3' : 'mp4'}`;
+            
+            // Codificamos el nombre para que no haya errores con espacios o tildes
             const encodedName = encodeURIComponent(fileName);
 
             // Configuración de cabeceras para streaming MP3
@@ -58,52 +62,73 @@ export class YouTubeController {
             const subprocess = await youtubeService.execDownload(url, formatId, res);
 
             /**
-             * PROTECCIÓN DE RECURSOS:
-             * Si el usuario cierra la pestaña o cancela la descarga, matamos el proceso de FFmpeg/yt-dlp
-             * para liberar CPU y RAM inmediatamente.
+             * MONITOREO DE ERRORES EN TIEMPO REAL:
+             * Capturamos el log de error de yt-dlp/ffmpeg para verlo en la consola de Railway.
+             */
+            if (subprocess && subprocess.stderr) {
+                subprocess.stderr.on('data', (data: any) => {
+                    const log = data.toString();
+                    // Solo logueamos si es un error real, no advertencias comunes
+                    if (log.includes('ERROR') || log.includes('HTTP Error')) {
+                        console.error(`[yt-dlp engine]: ${log.trim()}`);
+                    }
+                });
+            }
+
+            /**
+             * PROTECCIÓN DE RECURSOS (Anti-Zombie):
+             * Si el usuario cierra la pestaña o cancela en el móvil, matamos el motor.
              */
             req.on('close', () => {
                 if (subprocess && typeof subprocess.kill === 'function') {
-                    console.log(`⚠️ Conexión abortada. Deteniendo motor para: ${fileName}`);
+                    console.log(`⚠️ Conexión abortada por el usuario. Deteniendo motor para: ${fileName}`);
+                    // SIGKILL asegura que el proceso se detenga de inmediato
                     subprocess.kill('SIGKILL'); 
                 }
             });
 
         } catch (error: any) {
             console.error("🔴 [YouTubeController Download]:", error.message);
+            // Solo enviamos error si la respuesta no ha empezado ya (evita doble header)
             if (!res.headersSent) {
-                res.status(500).send("Error en el motor de descarga.");
+                res.status(500).send("Error crítico en el motor de descarga.");
             }
         }
     }
 }
+
 /**
- * Función de limpieza para RyoMixed
- * Borra archivos temporales huérfanos para ahorrar espacio en disco.
+ * FUNCIÓN DE LIMPIEZA (@RyoMixed)
+ * Escanea la raíz del proyecto para borrar archivos temporales que no se eliminaron.
+ * Útil si el servidor se reinicia o falla durante una mezcla de video.
  */
 export const cleanTempFiles = () => {
     const rootPath = process.cwd();
-    const files = fs.readdirSync(rootPath);
+    
+    try {
+        const files = fs.readdirSync(rootPath);
+        console.log("🧹 [RyoMixed Cleaner]: Iniciando limpieza de residuos...");
 
-    console.log("🧹 [RyoMixed Cleaner]: Iniciando limpieza de archivos temporales...");
+        files.forEach(file => {
+            // Filtramos archivos temporales del sistema
+            if (file.startsWith('ryo_tmp_') || file.startsWith('ryo_download_')) {
+                const filePath = path.join(rootPath, file);
+                try {
+                    const stats = fs.statSync(filePath);
+                    const now = new Date().getTime();
+                    const fileAgeInMinutes = (now - stats.mtimeMs) / (1000 * 60);
 
-    files.forEach(file => {
-        // Buscamos archivos que empiecen con nuestro prefijo ryo_tmp_ o ryo_download_
-        if (file.startsWith('ryo_tmp_') || file.startsWith('ryo_download_')) {
-            const filePath = path.join(rootPath, file);
-            try {
-                const stats = fs.statSync(filePath);
-                const now = new Date().getTime();
-                const fileAgeInMinutes = (now - stats.mtimeMs) / (1000 * 60);
-
-                // Borramos archivos que tengan más de 15 minutos (por seguridad)
-                if (fileAgeInMinutes > 15) {
-                    fs.unlinkSync(filePath);
-                    console.log(`🗑️  Eliminado residuo: ${file}`);
+                    // Borramos archivos de más de 15 minutos (ya deberían haber terminado)
+                    if (fileAgeInMinutes > 15) {
+                        fs.unlinkSync(filePath);
+                        console.log(`🗑️ Eliminado residuo antiguo: ${file}`);
+                    }
+                } catch (err) {
+                    console.error(`❌ Falló al procesar ${file}:`, err);
                 }
-            } catch (err) {
-                console.error(`❌ No se pudo borrar ${file}:`, err);
             }
-        }
-    });
+        });
+    } catch (error) {
+        console.error("❌ [Cleaner Error]: No se pudo acceder al directorio raíz.");
+    }
 };
