@@ -33,6 +33,10 @@ const InstagramPost: React.FC<InstagramPostProps> = ({ data }) => {
     return Array.from(types).join(' + ');
   };
 
+  /**
+   * @method handleDownloadSelected
+   * @description Lógica unificada que usa los nombres dinámicos del backend
+   */
   const handleDownloadSelected = async () => {
     if (selectedIndexes.length === 0 || isDownloading) return;
     setIsDownloading(true);
@@ -41,7 +45,9 @@ const InstagramPost: React.FC<InstagramPostProps> = ({ data }) => {
 
     for (const index of selectedIndexes) {
       const item = data.media[index];
-      const finalName = item.filename || `${data.sanitizedTitle}_${index + 1}`;
+      
+      // PRIORIDAD DE NOMBRE: customFileName (Backend) -> filename (API) -> sanitized (Fallback)
+      const finalName = item.customFileName || item.filename || `${data.sanitizedTitle}_${index + 1}`;
 
       const params = new URLSearchParams({
         url: item.url, 
@@ -51,7 +57,7 @@ const InstagramPost: React.FC<InstagramPostProps> = ({ data }) => {
 
       const link = document.createElement('a');
       link.href = `${downloadEndpoint}?${params.toString()}`;
-      link.setAttribute('download', `${finalName}.${item.ext}`);
+      link.setAttribute('download', finalName); 
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -63,112 +69,105 @@ const InstagramPost: React.FC<InstagramPostProps> = ({ data }) => {
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto bg-[#0d0d0d]/95 backdrop-blur-2xl border border-white/5 rounded-[2rem] md:rounded-[2.5rem] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-500 my-4">
+    <div className="w-full max-w-5xl mx-auto bg-[#0a0a0a]/95 md:bg-[#0d0d0d]/95 backdrop-blur-2xl border border-white/5 rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-500 my-4 md:my-8">
       
-      {/* SECCIÓN: HEADER - Ajustado para móvil */}
-      <div className="p-6 md:p-8 border-b border-white/5 flex flex-col items-center justify-center text-center gap-3 md:gap-4 bg-gradient-to-b from-blue-500/10 to-transparent">
-        <div className="p-3 md:p-4 bg-gradient-to-tr from-blue-400 via-indigo-600 to-purple-600 rounded-xl md:rounded-2xl shadow-xl relative">
-           <Layers className="text-white w-5 h-5 md:w-6 md:h-6" />
+      {/* HEADER: Adaptativo */}
+      <div className="p-5 md:p-8 border-b border-white/5 flex flex-col items-center justify-center text-center gap-3 md:gap-4 bg-gradient-to-b from-blue-500/10 to-transparent">
+        {/* En móvil el icono es más pequeño y minimalista */}
+        <div className="p-2.5 md:p-4 bg-gradient-to-tr from-blue-400 via-indigo-600 to-purple-600 rounded-lg md:rounded-2xl shadow-xl">
+           <Layers className="text-white w-4 h-4 md:w-6 md:h-6" />
         </div>
         <div className="max-w-2xl px-2">
-          <h2 className="text-xl md:text-2xl font-black text-white tracking-tight line-clamp-1 mb-1">
-            Galería de Medios
+          <h2 className="text-lg md:text-2xl font-black text-white tracking-tight line-clamp-1 mb-0.5 md:mb-1">
+            {data.author !== 'ig_user' ? `@${data.author}` : 'Galería de Medios'}
           </h2>
-          <p className="text-[9px] md:text-xs text-blue-400 font-black uppercase tracking-[0.2em] md:tracking-[0.3em] opacity-80">
-            CONTENIDO DE @{data.author !== 'ig_user' ? data.author : 'USER'}
+          <p className="text-[8px] md:text-xs text-blue-400 font-black uppercase tracking-[0.2em] md:tracking-[0.3em] opacity-80">
+            {data.media.length} Archivos en Alta Calidad
           </p>
         </div>
       </div>
 
       <div className="flex flex-col lg:flex-row">
         {/* PANEL IZQUIERDO: Grilla de Selección */}
-        <div className="w-full lg:w-2/3 p-4 md:p-8 bg-black/20 border-b lg:border-b-0 lg:border-r border-white/5">
+        <div className="w-full lg:w-2/3 p-3 md:p-8 bg-black/20 border-b lg:border-b-0 lg:border-r border-white/5">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4 max-h-[400px] md:max-h-[550px] overflow-y-auto pr-1 md:pr-2 custom-scrollbar">
             {data.media.map((item, index) => {
+              const isSelected = selectedIndexes.includes(index);
               const proxiedThumb = `${API_CONFIG.BASE_URL}/api/instagram/proxy/image?url=${encodeURIComponent(item.thumbnail)}`;
               
               return (
                 <div 
                   key={index} 
                   onClick={() => toggleSelect(index)}
-                  className={`group relative aspect-square rounded-xl md:rounded-2xl overflow-hidden border-2 transition-all cursor-pointer ${
-                    selectedIndexes.includes(index) 
-                      ? 'border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.4)]' 
+                  className={`group relative aspect-[4/5] md:aspect-square rounded-xl md:rounded-2xl overflow-hidden border-2 transition-all cursor-pointer ${
+                    isSelected 
+                      ? 'border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.3)]' 
                       : 'border-white/5 hover:border-white/20'
                   }`}
                 >
                   <img 
-                    src={proxiedThumb} 
+                    src={proxiedThumb}
+                    loading="lazy"
                     className={`w-full h-full object-cover transition-transform duration-700 ${
-                      selectedIndexes.includes(index) ? 'scale-110 opacity-100' : 'opacity-50 group-hover:opacity-100'
+                      isSelected ? 'scale-105 opacity-100 saturate-100' : 'opacity-40 md:opacity-50 group-hover:opacity-100 saturate-50 md:saturate-100'
                     }`} 
-                    alt={`Preview ${index}`} 
+                    alt="Preview" 
                   />
                   
-                  {/* Tipo Icon */}
-                  <div className="absolute top-2 left-2 p-1 md:p-1.5 bg-black/70 backdrop-blur-md rounded-lg border border-white/10 z-10">
+                  {/* Tipo Icon - Flotante */}
+                  <div className="absolute bottom-2 left-2 p-1 md:p-1.5 bg-black/70 backdrop-blur-md rounded-lg border border-white/10 z-10">
                     {item.type === 'video' ? <Video className="w-3 h-3 text-white" /> : <ImageIcon className="w-3 h-3 text-white" />}
                   </div>
 
-                  {/* Check Overlay */}
+                  {/* Check Overlay - Versión Minimalista en Móvil */}
                   <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${
-                    selectedIndexes.includes(index) ? 'bg-blue-600/30 opacity-100' : 'opacity-0'
+                    isSelected ? 'bg-blue-600/20 md:bg-blue-600/30 opacity-100' : 'opacity-0'
                   }`}>
-                    <div className="bg-blue-500 p-1.5 md:p-2 rounded-full shadow-2xl transform scale-110">
-                      <Check className="w-5 h-5 md:w-6 md:h-6 text-white stroke-[4px]" />
+                    <div className="bg-blue-500 p-1.5 md:p-2 rounded-full shadow-2xl transform scale-90 md:scale-110">
+                      <Check className="w-4 h-4 md:w-6 md:h-6 text-white stroke-[4px]" />
                     </div>
                   </div>
                 </div>
               );
             })}
           </div>
-          {/* Contador rápido para móvil */}
-          <div className="mt-4 lg:hidden text-center">
-             <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">
-               Toca las imágenes para seleccionar
-             </span>
-          </div>
         </div>
 
         {/* PANEL DERECHO: Metadata y Acción */}
-        <div className="w-full lg:w-1/3 p-6 md:p-8 flex flex-col bg-white/[0.02]">
-          <div className="space-y-6 flex-grow">
+        <div className="w-full lg:w-1/3 p-6 md:p-8 flex flex-col bg-white/[0.01] md:bg-white/[0.02]">
+          <div className="space-y-4 md:space-y-6 flex-grow">
             <div className="flex items-center justify-between">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 flex items-center gap-2">
-                <ShieldCheck className="w-3.5 h-3.5 text-blue-500" /> Control
+              <h3 className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.3em] text-white/30 flex items-center gap-2">
+                <ShieldCheck className="w-3.5 h-3.5 text-blue-500" /> Control HD
               </h3>
-              <span className="text-[9px] font-black text-blue-500/50 italic">HD Engine</span>
+              <div className="flex gap-2">
+                <button onClick={() => setSelectedIndexes(data.media.map((_, i) => i))} className="text-[8px] font-bold text-blue-500 hover:underline uppercase tracking-widest">Todo</button>
+                <button onClick={() => setSelectedIndexes([])} className="text-[8px] font-bold text-white/20 hover:text-white uppercase tracking-widest">Limpiar</button>
+              </div>
             </div>
             
             <div className="grid grid-cols-1 gap-3 md:gap-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 md:p-4 rounded-xl md:rounded-2xl bg-white/5 border border-white/10">
                   <span className="text-[8px] md:text-[9px] font-bold text-white/30 uppercase block mb-1">Formato</span>
-                  <span className="text-[10px] md:text-[11px] font-black text-blue-400 uppercase truncate block">{getSelectedTypes()}</span>
+                  <span className="text-[10px] md:text-[11px] font-black text-blue-400 uppercase truncate block leading-none">{getSelectedTypes()}</span>
                 </div>
                 <div className="p-3 md:p-4 rounded-xl md:rounded-2xl bg-white/5 border border-white/10">
-                  <span className="text-[8px] md:text-[9px] font-bold text-white/30 uppercase block mb-1">Calidad</span>
-                  <span className="text-[10px] md:text-[11px] font-black text-white uppercase block">HD+</span>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-xl md:rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
-                <div>
                   <span className="text-[8px] md:text-[9px] font-bold text-white/30 uppercase block mb-1">Items</span>
-                  <span className="text-[10px] md:text-[11px] font-black text-blue-500 uppercase tracking-widest">
-                    {selectedIndexes.length} Seleccionados
+                  <span className="text-[10px] md:text-[11px] font-black text-white uppercase block leading-none">
+                    {selectedIndexes.length} / {data.media.length}
                   </span>
                 </div>
-                <Layers className="w-4 h-4 text-white/20" />
               </div>
 
-              <div className="p-4 md:p-5 rounded-2xl md:rounded-3xl bg-gradient-to-br from-blue-500/10 to-transparent border border-blue-500/20">
-                <div className="flex items-center gap-3 bg-black/50 p-3 rounded-xl border border-white/5">
-                  <FileCode className="w-4 h-4 text-blue-500 shrink-0" />
-                  <span className="text-[10px] text-white/70 font-mono truncate">
+              {/* Caja de Nombre: Ahora detecta bien el nombre real */}
+              <div className="p-3 md:p-5 rounded-xl md:rounded-3xl bg-gradient-to-br from-blue-500/5 to-transparent border border-white/5">
+                <div className="flex items-center gap-2 md:gap-3 bg-black/40 p-2.5 md:p-3 rounded-lg md:rounded-xl border border-white/5">
+                  <FileCode className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                  <span className="text-[9px] md:text-[10px] text-white/60 font-mono truncate">
                     {selectedIndexes.length > 0 
-                      ? (data.media[selectedIndexes[0]].filename || data.sanitizedTitle)
-                      : data.sanitizedTitle}
+                      ? (data.media[selectedIndexes[0]].customFileName || data.media[selectedIndexes[0]].filename || data.sanitizedTitle)
+                      : "Esperando selección..."}
                   </span>
                 </div>
               </div>
@@ -178,18 +177,16 @@ const InstagramPost: React.FC<InstagramPostProps> = ({ data }) => {
           <button 
             onClick={handleDownloadSelected}
             disabled={selectedIndexes.length === 0 || isDownloading}
-            className={`mt-8 w-full py-5 md:py-6 rounded-xl md:rounded-2xl font-black text-[10px] md:text-[11px] uppercase tracking-[0.4em] md:tracking-[0.6em] transition-all flex items-center justify-center gap-3 shadow-xl active:scale-95 ${
+            className={`mt-6 md:mt-8 w-full py-4 md:py-6 rounded-xl md:rounded-2xl font-black text-[10px] md:text-[11px] uppercase tracking-[0.4em] md:tracking-[0.6em] transition-all flex items-center justify-center gap-3 active:scale-95 shadow-xl ${
               selectedIndexes.length === 0 || isDownloading
               ? 'bg-white/5 text-white/10 cursor-not-allowed border border-white/5' 
-              : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20'
+              : 'bg-white text-black md:bg-blue-600 md:text-white hover:opacity-90'
             }`}
           >
             {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             {isDownloading 
               ? 'Procesando...' 
-              : selectedIndexes.length > 1 
-                ? `Bajar ${selectedIndexes.length} archivos` 
-                : 'Descargar Selección'}
+              : `Descargar (${selectedIndexes.length})`}
           </button>
         </div>
       </div>

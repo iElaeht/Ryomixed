@@ -5,13 +5,15 @@ export interface InstagramMedia {
   ext: string;
   index?: number;
   filename: string;
+  customFileName?: string; 
+  duration?: number; 
 }
 
-export  interface InstagramData {
+export interface InstagramData {
   platform: 'instagram';
   type: 'video' | 'photo' | 'carousel';
   title: string;
-  sanitizedTitle: string;
+  sanitizedTitle: string; 
   author: string;
   thumbnail: string;
   duration?: number;

@@ -6,7 +6,7 @@ import ModalAbout from './components/ui/ModalAbout';
 // FLOWS Y COMPONENTES
 import YouTubeFlow from './components/flows/Youtube/YouTubeFlow';
 import TiktokReel from './components/Tiktok/TiktokReel';
-import TiktokPost from './components/Tiktok/TiktokPost'; // ✅ NUEVO IMPORT
+import TiktokPost from './components/Tiktok/TiktokPost';
 import InstagramReel from './components/Instagram/InstagramReel';
 import InstagramPost from './components/Instagram/InstagramPost';
 
@@ -15,6 +15,13 @@ import { Search, Loader2, ClipboardPaste, X } from 'lucide-react';
 // TYPES
 import type { InstagramData } from './types/instagram';
 import type { TikTokMedia } from './types/tiktok';
+
+// ==========================================
+// 🛠️ MODO DESARROLLADOR (PALANCA MAESTRA)
+// Comenta la línea de abajo para: PRODUCCIÓN + BLOQUEO DE INSPECCIÓN
+// Descomenta la línea de abajo para: LOCALHOST + LIBERTAD TOTAL
+// const IS_DEV_MODE = true; 
+// ==========================================
 
 const RENDER_URL = 'https://ryomixed-production.up.railway.app';
 const LOCAL_URL = 'http://localhost:4000';
@@ -25,7 +32,7 @@ interface YouTubeData {
   sanitizedTitle: string; 
   author: string;
   thumbnail: string;
-  duration: number; 
+  duration: number;
   formats: Array<{ id: string; label: string; ext: string; filesize?: string }>;
 }
 
@@ -37,6 +44,34 @@ function App() {
   const [videoData, setVideoData] = useState<RyoData | null>(null);
   const [loading, setLoading] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+
+  // --- Lógica de Protección (Security Lock) ---
+  useEffect(() => {
+    // @ts-expect-error - Solo actúa si la palanca está comentada
+    if (typeof IS_DEV_MODE !== 'undefined') return;
+
+    // 1. Bloqueo de Menú Contextual (Click Derecho)
+    const handleContextMenu = (e: MouseEvent) => e.preventDefault();
+
+    // 2. Bloqueo de Teclas de Inspección (F12, Ctrl+Shift+I, Ctrl+Shift+C, Ctrl+U)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === 'F12' || 
+        (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'C' || e.key === 'J')) ||
+        (e.ctrlKey && e.key === 'u')
+      ) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   // --- Lógica de Animación de Títulos ---
   const titlePhrases = ["te inspira.", "te hace reír.", "quieres guardar.", "te mueve."];
@@ -75,11 +110,17 @@ function App() {
 
     const timer = setTimeout(handleTyping, typingSpeed);
     return () => clearTimeout(timer);
-  }, [displayText, isDeleting, phraseIndex]);
+  }, [displayText, isDeleting, phraseIndex, titlePhrases, placeholderPhrases]);
 
-  const apiBaseUrl = useMemo(() => window.location.hostname === 'localhost' ? LOCAL_URL : RENDER_URL, []);
+  /**
+   * @description Switch dinámico de entorno
+   */
+  const apiBaseUrl = useMemo(() => {
+    // @ts-expect-error - Detecta si la palanca manual está activa
+    if (typeof IS_DEV_MODE !== 'undefined') return LOCAL_URL;
+    return window.location.hostname === 'localhost' ? LOCAL_URL : RENDER_URL;
+  }, []);
 
-  // --- Handlers ---
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanUrl = url.trim().split(/\s+/).find(p => p.includes('http'));
@@ -115,11 +156,7 @@ function App() {
         throw new Error(responseData.message || "Error al procesar.");
       }
     } catch (error: unknown) {
-      if (error instanceof Error) {
-        alert(error.message || "Error desconocido");
-      } else {
-        alert("Error desconocido");
-      }
+      alert(error instanceof Error ? error.message : "Error desconocido");
     } finally {
       setLoading(false);
     }
@@ -152,7 +189,7 @@ function App() {
                   placeholder={`Pega link de ${displayPlaceholder}`}
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  className="flex-grow bg-transparent border-none focus:ring-0 text-white py-4 sm:py-5 px-4 sm:px-6 outline-none text-sm sm:text-base transition-all placeholder:text-gray-500/60 placeholder:italic"
+                  className="flex-grow bg-transparent border-none focus:ring-0 text-white py-4 sm:py-5 px-4 sm:px-6 outline-none text-sm sm:text-base transition-all placeholder:text-gray-500/60"
                 />
 
                 {url && (
@@ -178,7 +215,7 @@ function App() {
             <button 
               type="submit" 
               disabled={loading || !url.trim()} 
-              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 px-10 py-4 rounded-xl font-black text-[10px] sm:text-xs uppercase tracking-[0.2em] flex justify-center items-center gap-3 transition-all shadow-lg active:scale-95 disabled:opacity-50"
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 px-10 py-4 rounded-xl font-black text-[10px] sm:text-xs uppercase tracking-[0.2em] flex justify-center items-center gap-3 transition-all active:scale-95 disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
               {loading ? 'Analizando...' : 'Buscar Contenido'}
@@ -188,17 +225,14 @@ function App() {
           <div className="w-full flex justify-center pb-20 animate-in fade-in zoom-in-95 duration-500">
             {videoData && (
               <>
-                {/* YOUTUBE */}
                 {videoData.platform === 'youtube' && <YouTubeFlow data={videoData as YouTubeData} originalUrl={activeUrl} />}
 
-                {/* TIKTOK (Sistema Discriminador de Tipo) */}
                 {videoData.platform === 'tiktok' && (
                   (videoData as TikTokMedia).type === 'photos' 
                     ? <TiktokPost data={videoData as TikTokMedia} /> 
                     : <TiktokReel data={videoData as TikTokMedia} />
                 )}
 
-                {/* INSTAGRAM */}
                 {videoData.platform === 'instagram' && (
                   (videoData as InstagramData).media.length > 1 ? (
                     <InstagramPost data={videoData as InstagramData} />
