@@ -7,7 +7,7 @@
   "scripts": {
     "postinstall": "node install-ffmpeg.cjs",
     "dev": "tsx watch src/app.ts",
-    "setup-ytdlp": "curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o ./node_modules/youtube-dl-exec/bin/yt-dlp && chmod a+rx ./node_modules/youtube-dl-exec/bin/yt-dlp",
+    "setup-ytdlp": "mkdir -p ./node_modules/youtube-dl-exec/bin && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o ./node_modules/youtube-dl-exec/bin/yt-dlp && chmod a+rx ./node_modules/youtube-dl-exec/bin/yt-dlp",
     "build": "npm run setup-ytdlp && tsc",
     "start": "node dist/app.js"
   },
