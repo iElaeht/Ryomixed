@@ -5,7 +5,7 @@ import { getInstagramFromRapid } from './scraperStable.service.js';
 import { getInstagramFromMediaExtractor } from './mediaExtractor.service.js';
 import { StatsService } from '../stats/stats.service.js';
 import https from 'https';
-
+//BY Elaeht
 export class InstagramService {
   
   async getInfo(url: string) {
