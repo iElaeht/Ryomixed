@@ -1,8 +1,8 @@
 import { extractInstagramVideo } from '../../extractors/instagram/reel.extractor.js';
 import { extractPostImage } from '../../extractors/instagram/PostImage.extractor.js';
-import { getInstagramFromDownloader } from './downloaderscraper.service.js';
 import { getInstagramFromRapid } from './scraperStable.service.js';
-import { getInstagramFromMediaExtractor } from './mediaextractor.service.js';
+import { getInstagramFromDownloader } from './downloaderScraper.service.js';
+import { getInstagramFromMediaExtractor } from './mediaExtractor.service.js';
 import { StatsService } from '../stats/stats.service.js';
 import https from 'https';
 //BY Elaeht
