@@ -96,13 +96,18 @@ export class YouTubeService {
     console.log(`\n--- 🔍 NUEVA SOLICITUD DE EXTRACCIÓN ---`);
     console.log(`🔗 URL: ${cleanUrl}`);
 
-    const options: any = {
-      jsRuntimes: "node", // Necesario para descifrar firmas de YouTube
-      dumpSingleJson: true,
-      noCheckCertificates: true,
-      noPlaylist: true,
-      addHeader: ["Accept-Language: es-ES,es;q=0.9"],
-    };
+  const options: any = {
+    jsRuntimes: "node",
+    dumpSingleJson: true,
+    noCheckCertificates: true,
+    noPlaylist: true,
+    addHeader: [
+      "Accept-Language: es-ES,es;q=0.9",
+      // Esto es muy importante para evitar detecciones de bot
+      "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+      "Referer: https://www.youtube.com/"
+    ],
+  };
 
     if (fs.existsSync(cookiesPath)) {
       options.cookies = cookiesPath;
