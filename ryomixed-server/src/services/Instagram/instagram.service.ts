@@ -105,20 +105,26 @@ export class InstagramService {
    * EJECUCIÓN DE DESCARGA (Túnel Blindado)
    * Corregido para evitar archivos corruptos 0xC00D36C4.
    */
-  async execDownload(url: string, res: any, fileName: string, type: string = 'video') {
+async execDownload(url: string, res: any, fileName: string, type: string = 'video') {
     const decodedUrl = decodeURIComponent(url);
     const isVideo = type.toLowerCase() === 'video' || type.toLowerCase() === 'reel';
     const extension = isVideo ? 'mp4' : 'jpg';
-    const finalFileName = fileName || 'RyoMixed_Download';
+    
+    // 1. Limpiamos el nombre para evitar caracteres raros en la descarga
+    const safeFileName = fileName.replace(/[^\w\s-]/gi, '').trim() || 'RyoMixed_Download';
+    const finalFileName = `${safeFileName}.${extension}`;
 
     console.log(`\n📥 [INSTAGRAM DOWNLOAD]`);
-    console.log(`   📂 Archivo: ${finalFileName}.${extension}`);
-    console.log(`   🛠️  Bypass: Iniciando túnel HTTPS...`);
+    console.log(`   📂 Archivo: ${finalFileName}`);
 
-    // Configuración de cabeceras de salida
+    // --- LAS CABECERAS CLAVE ---
     res.setHeader('Content-Type', isVideo ? 'video/mp4' : 'image/jpeg');
-    // Forzamos al navegador a tratarlo como un flujo de datos binarios
+    
+    // ESTA LÍNEA ES LA QUE FUERZA LA DESCARGA:
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(finalFileName)}"`);
+    
     res.setHeader('Content-Transfer-Encoding', 'binary');
+    // ---------------------------
 
     const options = {
       headers: {
@@ -126,9 +132,9 @@ export class InstagramService {
         'Referer': 'https://www.instagram.com/',
         'Accept': '*/*'
       },
-      // Añadimos tiempo de espera para evitar cortes prematuros
       timeout: 30000 
     };
+
 
     const request = https.get(decodedUrl, options, (stream) => {
       // Si Instagram nos devuelve algo que no sea 200 (éxito), informamos
