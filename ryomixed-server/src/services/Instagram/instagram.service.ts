@@ -5,7 +5,11 @@ import { getInstagramFromDownloader } from './downloaderScraper.service.js';
 import { getInstagramFromMediaExtractor } from './mediaExtractor.service.js';
 import { StatsService } from '../stats/stats.service.js';
 import https from 'https';
-//BY Elaeht
+
+/**
+ * SERVICIO DE INSTAGRAM (@RyoMixed)
+ * Sistema de extracción multi-motor con bypass de seguridad.
+ */
 export class InstagramService {
   
   async getInfo(url: string) {
@@ -13,28 +17,24 @@ export class InstagramService {
       const cleanUrl = url.split('?')[0];
       let finalData: any = null;
 
-      // --- SEPARACIÓN VISUAL PARA NUEVA PETICIÓN ---
       console.log(`\n--- 📸 NUEVA SOLICITUD DE INSTAGRAM ---`);
       console.log(`🔗 URL: ${cleanUrl}`);
 
-      // --- PASO 1: MEDIA EXTRACTOR ---
+      // Cascada de motores (Fallback System)
       console.log(`🚀 [Step 1]: Probando Motor MEDIA EXTRACTOR...`);
       finalData = await getInstagramFromMediaExtractor(cleanUrl);
       
       if (!finalData) {
-        // --- PASO 2: MOTOR DOWNLOADER ---
         console.log(`🚀 [Step 2]: Falló anterior. Probando DOWNLOADER...`);
         finalData = await getInstagramFromDownloader(cleanUrl);
       }
 
       if (!finalData) {
-        // --- PASO 3: MOTOR STABLE ---
         console.log(`🚀 [Step 3]: Falló anterior. Probando STABLE...`);
         finalData = await getInstagramFromRapid(cleanUrl);
       }
 
       if (!finalData) {
-        // --- PASO 4: EXTRACCIÓN LOCAL ---
         console.log(`⚠️ [Step 4]: APIs externas agotadas. Intentando Local...`);
         const imageData = await extractPostImage(cleanUrl).catch(() => null);
         let videoData = null;
@@ -61,6 +61,9 @@ export class InstagramService {
     }
   }
 
+  /**
+   * Normaliza la respuesta para que el Front-end la entienda.
+   */
   private formatResponse(data: any, originalUrl: string) {
     const isReel = originalUrl.includes('/reel/');
     const prefix = isReel ? 'Reel' : 'Post';
@@ -98,38 +101,64 @@ export class InstagramService {
     };
   }
 
+  /**
+   * EJECUCIÓN DE DESCARGA (Túnel Blindado)
+   * Corregido para evitar archivos corruptos 0xC00D36C4.
+   */
   async execDownload(url: string, res: any, fileName: string, type: string = 'video') {
     const decodedUrl = decodeURIComponent(url);
     const isVideo = type.toLowerCase() === 'video' || type.toLowerCase() === 'reel';
     const extension = isVideo ? 'mp4' : 'jpg';
     const finalFileName = fileName || 'RyoMixed_Download';
 
-    // --- LOG DE DESCARGA DETALLADO ---
     console.log(`\n📥 [INSTAGRAM DOWNLOAD]`);
     console.log(`   📂 Archivo: ${finalFileName}.${extension}`);
     console.log(`   🛠️  Bypass: Iniciando túnel HTTPS...`);
 
+    // Configuración de cabeceras de salida
     res.setHeader('Content-Type', isVideo ? 'video/mp4' : 'image/jpeg');
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(finalFileName)}.${extension}"`);
+    // Forzamos al navegador a tratarlo como un flujo de datos binarios
+    res.setHeader('Content-Transfer-Encoding', 'binary');
 
-    const request = https.get(decodedUrl, {
+    const options = {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         'Referer': 'https://www.instagram.com/',
         'Accept': '*/*'
+      },
+      // Añadimos tiempo de espera para evitar cortes prematuros
+      timeout: 30000 
+    };
+
+    const request = https.get(decodedUrl, options, (stream) => {
+      // Si Instagram nos devuelve algo que no sea 200 (éxito), informamos
+      if (stream.statusCode !== 200) {
+        console.error(`🔴 [Tunnel Error]: Instagram respondió con ${stream.statusCode}`);
+        if (!res.headersSent) res.status(500).send("Instagram denegó el acceso al archivo.");
+        return;
       }
-    }, (stream) => {
+
       console.log(`   📦 [Stream]: Transfiriendo datos al cliente...`);
       stream.pipe(res);
 
       stream.on('end', () => {
-        console.log(`✅ [Instagram]: Túnel cerrado. Descarga terminada.\n`);
+        console.log(`✅ [Instagram]: Túnel cerrado con éxito.\n`);
+      });
+
+      stream.on('error', (err) => {
+        console.error(`🔴 [Stream Pipe Error]: ${err.message}`);
       });
     });
 
     request.on('error', (e) => {
       console.error(`\n🔴 [Tunnel Error]: ${e.message}\n`);
       if (!res.headersSent) res.status(500).send("Error en el túnel de descarga.");
+    });
+
+    // Importante: establecer un timeout en la petición
+    request.on('timeout', () => {
+      request.destroy();
+      console.error("🔴 [Tunnel Error]: Tiempo de espera agotado.");
     });
   }
 }
