@@ -3,6 +3,9 @@ import Nav from './components/ui/Navbar';
 import Footer from './components/ui/Footer';
 import ModalAbout from './components/ui/ModalAbout';
 
+// Aqui esta la linea de codigo de vista Mantenimiento
+import Maintenance from './components/maintenance/maintenance';
+
 // FLOWS Y COMPONENTES
 import YouTubeFlow from './components/flows/Youtube/YouTubeFlow';
 import TiktokReel from './components/Tiktok/TiktokReel';
@@ -21,6 +24,9 @@ import type { TikTokMedia } from './types/tiktok';
 // Comenta la línea de abajo para: PRODUCCIÓN + BLOQUEO DE INSPECCIÓN
 // Descomenta la línea de abajo para: LOCALHOST + LIBERTAD TOTAL
 // const IS_DEV_MODE = true; 
+
+// Aqui esta la linea de codigo de vista Mantenimiento (Cambiar a false para activar la web)
+const IS_MAINTENANCE = true; 
 // ==========================================
 
 const RENDER_URL = 'https://ryomixed-production.up.railway.app';
@@ -50,10 +56,8 @@ function App() {
     // @ts-expect-error - Solo actúa si la palanca está comentada
     if (typeof IS_DEV_MODE !== 'undefined') return;
 
-    // 1. Bloqueo de Menú Contextual (Click Derecho)
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
 
-    // 2. Bloqueo de Teclas de Inspección (F12, Ctrl+Shift+I, Ctrl+Shift+C, Ctrl+U)
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
         e.key === 'F12' || 
@@ -112,9 +116,6 @@ function App() {
     return () => clearTimeout(timer);
   }, [displayText, isDeleting, phraseIndex, titlePhrases, placeholderPhrases]);
 
-  /**
-   * @description Switch dinámico de entorno
-   */
   const apiBaseUrl = useMemo(() => {
     // @ts-expect-error - Detecta si la palanca manual está activa
     if (typeof IS_DEV_MODE !== 'undefined') return LOCAL_URL;
@@ -161,6 +162,9 @@ function App() {
       setLoading(false);
     }
   };
+
+  // Aqui esta la linea de codigo de vista Mantenimiento
+  if (IS_MAINTENANCE) return <Maintenance />;
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0f1a] text-white selection:bg-blue-500/30 font-sans">
