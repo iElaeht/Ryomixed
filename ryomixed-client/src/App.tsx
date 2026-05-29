@@ -26,11 +26,10 @@ import type { TikTokMedia } from './types/tiktok';
 // const IS_DEV_MODE = true; 
 
 // Aqui esta la linea de codigo de vista Mantenimiento (Cambiar a false para activar la web)
-const IS_MAINTENANCE = true; 
+const IS_MAINTENANCE = false; 
 // ==========================================
 
 const RENDER_URL = 'https://ryomixed-production.up.railway.app';
-const LOCAL_URL = 'http://localhost:4000';
 
 interface YouTubeData {
   type: 'youtube';
@@ -117,9 +116,14 @@ function App() {
   }, [displayText, isDeleting, phraseIndex, titlePhrases, placeholderPhrases]);
 
   const apiBaseUrl = useMemo(() => {
-    // @ts-expect-error - Detecta si la palanca manual está activa
-    if (typeof IS_DEV_MODE !== 'undefined') return LOCAL_URL;
-    return window.location.hostname === 'localhost' ? LOCAL_URL : RENDER_URL;
+    const hostname = window.location.hostname;
+    const isLocal = hostname === 'localhost' || 
+                    hostname === '127.0.0.1' || 
+                    hostname.startsWith('192.168.');
+
+    if (isLocal) return `http://${hostname}:4000`;
+    
+    return RENDER_URL;
   }, []);
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -135,11 +139,11 @@ function App() {
     setActiveUrl(cleanUrl); 
 
     try {
-      let endpoint = '/api/tiktok/info';
-      if (isYouTube) endpoint = '/api/youtube/info';
-      if (isInstagram) endpoint = '/api/instagram/info';
+      let endpoint = '/tiktok/info';
+      if (isYouTube) endpoint = '/youtube/info';
+      if (isInstagram) endpoint = '/instagram/info';
 
-      const response = await fetch(`${apiBaseUrl}${endpoint}`, {
+      const response = await fetch(`${apiBaseUrl}/api${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: cleanUrl })
@@ -163,7 +167,20 @@ function App() {
     }
   };
 
-  // Aqui esta la linea de codigo de vista Mantenimiento
+  // --- Manejador del portapapeles seguro ---
+  const handlePasteClick = async () => {
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.readText) {
+        throw new Error("El navegador bloquea el acceso automático al portapapeles en conexiones HTTP de red local.");
+      }
+      const text = await navigator.clipboard.readText();
+      setUrl(text);
+    } catch (err: unknown) {
+      console.warn("Clipboard Error: ", err);
+      alert("Para pegar en el celular usando red local (HTTP), mantén presionado el cuadro de texto y selecciona 'Pegar' de forma nativa.");
+    }
+  };
+
   if (IS_MAINTENANCE) return <Maintenance />;
 
   return (
@@ -204,10 +221,7 @@ function App() {
 
                 <button 
                   type="button" 
-                  onClick={async () => {
-                    const text = await navigator.clipboard.readText();
-                    setUrl(text);
-                  }} 
+                  onClick={handlePasteClick} 
                   className="flex items-center gap-2 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all active:scale-95"
                 >
                   <ClipboardPaste className="w-4 h-4 sm:w-5 sm:h-5" />
