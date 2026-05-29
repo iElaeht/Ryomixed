@@ -38,9 +38,15 @@ app.use(cors({
             'https://ryomixed.vercel.app',
             'https://ryomixed-client.vercel.app'
         ];
-        if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+
+        // --- MEJORA PARA RED LOCAL (Evita el bloqueo 500 en móviles/IPs locales) ---
+        // Detecta si la petición viene de una IP local de tu casa o red interna
+        const isLocalIP = origin?.includes('192.168.') || origin?.includes('10.') || origin?.includes('127.0.0.1');
+
+        if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app') || isLocalIP) {
             callback(null, true);
         } else {
+            console.warn(`🚫 [CORS Bloqueado]: Origen no reconocido -> ${origin}`);
             callback(new Error('CORS Blocked by RyoMixed'));
         }
     },
