@@ -5,9 +5,12 @@ import { useState, useMemo, useEffect } from 'react';
 import Navbar from '@/components/layout/navbar';
 import Footer from '@/components/layout/footer';
 import TiktokResult from "@/components/result/tiktok/TiktokResult";
-import { Search, Loader2, ClipboardPaste, X, Sparkles } from 'lucide-react';
+import Maintenance from '@/components/layout/Maintenance';
+import { Search, Loader2, ClipboardPaste, X, Code2 } from 'lucide-react';
 
-const IS_MAINTENANCE = false; 
+// --- PALANCAS DE CONFIGURACIÓN ---
+const IS_MAINTENANCE = false; // Cambia a true para activar la pantalla de mantenimiento
+const IS_DEV_MODE = false;     // false = Bloquea inspección (Producción) | true = Permite inspección (Desarrollo)
 
 interface TikTokData {
   platform?: 'tiktok';
@@ -21,17 +24,49 @@ interface TikTokData {
   [key: string]: unknown;
 }
 
-type MediaData = TikTokData | { platform?: 'youtube' | 'instagram'; [key: string]: unknown };
-
 export default function Home() {
   const [url, setUrl] = useState('');
-  const [videoData, setVideoData] = useState<MediaData | null>(null);
+  const [videoData, setVideoData] = useState<TikTokData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [isAboutOpen, setIsAboutOpen] = useState(false);
 
-  // --- Lógica de Animación de Títulos y Placeholder Sincronizados ---
+  // --- Lógica de Bloqueo / Protección de DevTools ---
+  useEffect(() => {
+    if (IS_DEV_MODE) return; 
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F12') {
+        e.preventDefault();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'I' || e.key === 'i')) {
+        e.preventDefault();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
+        e.preventDefault();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'J' || e.key === 'j')) {
+        e.preventDefault();
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'U' || e.key === 'u')) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('contextmenu', handleContextMenu);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('contextmenu', handleContextMenu);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  // --- Lógica de Animación de Títulos y Placeholder para TikTok ---
   const titlePhrases = ["te inspira.", "te hace reír.", "quieres guardar.", "te mueve."];
-  const placeholderPhrases = ["YouTube...", "TikTok...", "Instagram..."];
+  const placeholderPhrases = ["TikTok..."];
 
   const [displayText, setDisplayText] = useState('');
   const [displayPlaceholder, setDisplayPlaceholder] = useState('');
@@ -41,21 +76,19 @@ export default function Home() {
 
   useEffect(() => {
     const currentTitle = titlePhrases[phraseIndex] || "";
-    const currentPlaceholder = placeholderPhrases[phraseIndex] || "";
+    const currentPlaceholder = placeholderPhrases[0] || "TikTok...";
     
     const handleTyping = () => {
       if (!isDeleting) {
         const nextLength = displayText.length + 1;
         setDisplayText(currentTitle.substring(0, nextLength));
-        const pRatio = Math.ceil((nextLength / currentTitle.length) * currentPlaceholder.length);
-        setDisplayPlaceholder(currentPlaceholder.substring(0, pRatio));
+        setDisplayPlaceholder(currentPlaceholder);
         setTypingSpeed(100);
         if (displayText === currentTitle) setTimeout(() => setIsDeleting(true), 2000);
       } else {
         const nextLength = displayText.length - 1;
         setDisplayText(currentTitle.substring(0, nextLength));
-        const pRatio = Math.ceil((nextLength / currentTitle.length) * currentPlaceholder.length);
-        setDisplayPlaceholder(currentPlaceholder.substring(0, pRatio));
+        setDisplayPlaceholder(currentPlaceholder);
         setTypingSpeed(50);
         if (displayText === '') {
           setIsDeleting(false);
@@ -68,7 +101,6 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [displayText, isDeleting, phraseIndex]);
 
-  // --- Manejo de la URL base para las rutas internas de Next.js (Puerto 3000) ---
   const apiBaseUrl = useMemo(() => '', []);
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -76,20 +108,18 @@ export default function Home() {
     const cleanUrl = url.trim().split(/\s+/).find(p => p.includes('http'));
     if (!cleanUrl) return;
 
-    const isYouTube = cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be');
-    const isInstagram = cleanUrl.includes('instagram.com');
     const isTikTok = cleanUrl.includes('tiktok.com') || cleanUrl.includes('vm.tiktok.com') || cleanUrl.includes('vt.tiktok.com');
     
+    if (!isTikTok) {
+      alert("Por favor, ingresa un enlace válido de TikTok.");
+      return;
+    }
+
     setLoading(true);
     setVideoData(null); 
 
     try {
-      let endpoint = '/api/tiktok';
-      if (isYouTube) endpoint = '/api/youtube';
-      else if (isInstagram) endpoint = '/api/instagram';
-      else if (isTikTok) endpoint = '/api/tiktok';
-
-      const response = await fetch(`${apiBaseUrl}${endpoint}`, {
+      const response = await fetch(`${apiBaseUrl}/api/tiktok`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: cleanUrl })
@@ -102,11 +132,9 @@ export default function Home() {
       }
       
       if (responseData.success && responseData.data) {
-        const detectedPlatform = isYouTube ? 'youtube' : isInstagram ? 'instagram' : 'tiktok';
-        
         setVideoData({
           ...responseData.data,
-          platform: responseData.data.platform || detectedPlatform
+          platform: 'tiktok'
         });
       } else {
         throw new Error(responseData.message || "Error al procesar el enlace.");
@@ -132,17 +160,20 @@ export default function Home() {
   };
 
   if (IS_MAINTENANCE) {
-    return (
-      <div className="min-h-screen bg-[#070a10] text-white flex items-center justify-center p-6 text-center">
-        <h1 className="text-2xl font-black uppercase tracking-wider text-[#fe2c55]">Sitio en Mantenimiento</h1>
-      </div>
-    );
+    return <Maintenance />;
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#070a10] text-white selection:bg-[#fe2c55] selection:text-white font-sans no-scrollbar">
+    <div className="flex flex-col min-h-screen bg-[#070a10] text-white selection:bg-[#fe2c55] selection:text-white font-sans no-scrollbar relative">
       
-      <Navbar onOpenAbout={() => setIsAboutOpen(true)} />
+      {IS_DEV_MODE && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 py-1.5 px-4 text-center flex items-center justify-center gap-2 text-amber-400 text-[10px] font-black uppercase tracking-widest">
+          <Code2 className="w-3.5 h-3.5" />
+          <span>Modo Desarrollador Activo (Inspección Permitida)</span>
+        </div>
+      )}
+
+      <Navbar onOpenAbout={() => {}} />
       
       <main className="flex-grow flex flex-col items-center px-4 pt-16 md:pt-24 pb-20">
         <div className="w-full max-w-4xl text-center">
@@ -175,7 +206,7 @@ export default function Home() {
                     type="button" 
                     onClick={() => {
                       setUrl('');
-                      setVideoData(null); // Resetea y limpia también los resultados para volver al estado base
+                      setVideoData(null);
                     }} 
                     className="p-2 text-gray-500 hover:text-white transition-colors mr-1 cursor-pointer"
                   >
@@ -208,9 +239,7 @@ export default function Home() {
           <div className="w-full flex justify-center pb-20 animate-in fade-in zoom-in-95 duration-500">
             {videoData && (
               <div className="w-full">
-                {(!videoData.platform || videoData.platform === 'tiktok') && (
-                  <TiktokResult data={videoData as TikTokData} />
-                )}
+                <TiktokResult data={videoData} />
               </div>
             )}
           </div>
@@ -218,27 +247,6 @@ export default function Home() {
       </main>
 
       <Footer />
-
-      {isAboutOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-          <div className="bg-[#0b0f17] border border-white/10 rounded-3xl p-6 max-w-md w-full relative">
-            <h3 className="text-lg font-black text-white uppercase mb-2 flex items-center gap-2">
-              <Sparkles className="text-[#25f4ee]" size={18} />
-              Sobre AI Mangas
-            </h3>
-            <p className="text-xs text-neutral-400 leading-relaxed mb-6">
-              Tu centro multimedia definitivo para la descarga de contenido sin marcas de agua de manera rápida, privada y segura.
-            </p>
-            <button 
-              onClick={() => setIsAboutOpen(false)}
-              className="w-full py-3 bg-[#fe2c55] text-white rounded-xl font-black text-xs uppercase tracking-wider cursor-pointer"
-            >
-              Cerrar
-            </button>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }

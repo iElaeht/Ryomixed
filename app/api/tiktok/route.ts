@@ -1,4 +1,4 @@
-// ryomixed/app/api/tiktok/route.ts
+// app/api/tiktok/route.ts
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -6,7 +6,15 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { url } = body;
 
-    if (!url || !url.includes("tiktok.com")) {
+    // Validación flexible para URLs de web y móviles (vm, vt)
+    const isValidTikTok = url && (
+      url.includes("tiktok.com") || 
+      url.includes("vm.tiktok.com") || 
+      url.includes("vt.tiktok.com")
+    );
+
+    if (!isValidTikTok) {
+      console.warn(`[TikTok - Warning] Intento de acceso con enlace no válido: ${url}`);
       return NextResponse.json(
         { success: false, message: "Por favor, ingresa un enlace válido de TikTok." },
         { status: 400 }
@@ -22,6 +30,7 @@ export async function POST(request: Request) {
     const data = await apiResponse.json();
 
     if (data.code !== 0 || !data.data) {
+      console.error(`[TikTok - Error] No se pudo procesar la URL en la API externa: ${url}`);
       return NextResponse.json(
         { success: false, message: "No se pudo extraer el contenido. Asegúrate de que el enlace sea público." },
         { status: 404 }
@@ -34,15 +43,20 @@ export async function POST(request: Request) {
       return u.startsWith("http") ? u : `${baseUrl}${u}`;
     };
 
-    // 1. Detección para Carrusel de Imágenes
+    const authorName = data.data.author?.nickname || "tiktok_user";
+    const contentTitle = data.data.title || "Sin título";
+
+    // 1. Detección para Carrusel de Imágenes (Gallery)
     if (data.data.images && Array.isArray(data.data.images) && data.data.images.length > 0) {
+      console.log(`[TikTok - Gallery] Éxito | Autor: @${authorName} | Imágenes: ${data.data.images.length} | URL: ${url}`);
+      
       return NextResponse.json({
         success: true,
         data: {
           type: "image",
           platform: "tiktok",
-          title: data.data.title || "Galería de TikTok",
-          author: data.data.author?.nickname || "tiktok_user",
+          title: contentTitle,
+          author: authorName,
           images: data.data.images.map((img: string) => formatUrl(img)),
           musicUrl: formatUrl(data.data.music)
         }
@@ -51,11 +65,13 @@ export async function POST(request: Request) {
 
     // 2. Detección para Video normal
     const rawVideoUrl = data.data.hdplay || data.data.play;
+    console.log(`[TikTok - Video] Éxito | Autor: @${authorName} | Título: "${contentTitle.substring(0, 30)}..." | URL: ${url}`);
+
     const videoData = {
       type: "video",
       platform: "tiktok",
-      title: data.data.title || "Video de TikTok",
-      author: data.data.author?.nickname || "tiktok_user",
+      title: contentTitle,
+      author: authorName,
       cover: formatUrl(data.data.cover || data.data.origin_cover),
       downloadUrl: formatUrl(rawVideoUrl),
       musicUrl: formatUrl(data.data.music),
@@ -67,7 +83,8 @@ export async function POST(request: Request) {
       data: videoData
     }, { status: 200 });
 
-  } catch {
+  } catch (error) {
+    console.error("[TikTok - Server Error] Excepción capturada:", error);
     return NextResponse.json(
       { success: false, message: "Error de conexión al procesar el enlace de TikTok." },
       { status: 500 }

@@ -1,16 +1,22 @@
 // components/layout/Footer.tsx
 import React from 'react';
-import { Heart, Shield, Zap, Globe, Coffee, Box, Camera } from 'lucide-react';
+import { Heart, Shield, Zap, Globe, Coffee, Box, Camera, CheckCircle2, Clock } from 'lucide-react';
 
 const Footer: React.FC = () => {
   const currentYear = new Date().getFullYear();
-  const platforms = ["Instagram", "TikTok", "YouTube", "Twitter", "Facebook", "Threads"];
+  
+  // Plataformas con su estado respectivo para el marquee/ticker
+  const platforms = [
+    { name: "TikTok (Disponible)", active: true },
+    { name: "YouTube (Próximamente)", active: false },
+    { name: "Instagram (Próximamente)", active: false }
+  ];
   const infinitePlatforms = [...platforms, ...platforms];
 
   return (
     <footer className="mt-20 border-t border-white/10 bg-[#070a10] py-14 sm:py-20 px-6 relative overflow-hidden">
       
-      {/* --- EFECTOS DE LUZ AMBIENTAL (Adaptados a los tonos Ryomixed) --- */}
+      {/* --- EFECTOS DE LUZ AMBIENTAL --- */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-px bg-gradient-to-r from-transparent via-[#25f4ee]/40 to-transparent" />
       <div className="absolute -bottom-24 -right-24 w-80 h-80 bg-[#fe2c55]/10 blur-[120px] rounded-full pointer-events-none" />
       <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-[#25f4ee]/10 blur-[120px] rounded-full pointer-events-none" />
@@ -31,14 +37,15 @@ const Footer: React.FC = () => {
             </p>
           </div>
 
-          {/* COLUMNA 2: SOPORTE */}
-          <div className="flex flex-col items-center space-y-6 lg:border-l lg:border-white/10 lg:pl-6">
-             <span className="text-[10px] font-black text-[#25f4ee]/80 uppercase tracking-[0.4em]">Soporte</span>
-             <div className="w-full max-w-[150px] overflow-hidden mask-fade-edges relative h-5">
+          {/* COLUMNA 2: SOPORTE Y ESTADO DE PLATAFORMAS */}
+          <div className="flex flex-col items-center space-y-5 lg:border-l lg:border-white/10 lg:pl-6">
+             <span className="text-[10px] font-black text-[#25f4ee]/80 uppercase tracking-[0.4em]">Plataformas</span>
+             <div className="w-full max-w-[180px] overflow-hidden mask-fade-edges relative h-5">
                 <div className="flex gap-8 animate-scroll-x absolute whitespace-nowrap">
                    {infinitePlatforms.map((p, i) => (
-                     <span key={i} className="text-[10px] font-bold text-gray-400 uppercase tracking-widest hover:text-[#25f4ee] transition-colors cursor-default">
-                       {p}
+                     <span key={i} className={`text-[10px] font-bold tracking-widest cursor-default flex items-center gap-1.5 ${p.active ? 'text-[#25f4ee]' : 'text-gray-500'}`}>
+                       {p.active ? <CheckCircle2 className="w-3 h-3 inline text-green-400" /> : <Clock className="w-3 h-3 inline text-amber-400" />}
+                       {p.name}
                      </span>
                    ))}
                 </div>
@@ -76,7 +83,7 @@ const Footer: React.FC = () => {
               className="group flex flex-col items-center gap-2"
             >
               <div className="flex items-center gap-2.5 text-gray-200 group-hover:text-white transition-all">
-                <div className="p-2 rounded-lg bg-white/5 group-hover:bg-gradient-to-tr group-hover:from-purple-500/20 group-hover:to-pink-500/20 transition-all duration-500 border border-transparent group-hover:border-pink-500/30 shadow-[0_0_15px_rgba(236,72,153,0)] group-hover:shadow-[0_0_15px_rgba(236,72,153,0.1)]">
+                <div className="p-2 rounded-lg bg-white/5 group-hover:bg-gradient-to-tr group-hover:from-purple-500/20 group-hover:to-pink-500/20 transition-all duration-500 border border-transparent group-hover:border-pink-500/30">
                     <Box className="w-4 h-4 text-[#25f4ee] group-hover:text-blue-300 transition-all" />
                 </div>
                 <span className="text-[11px] font-black uppercase tracking-widest group-hover:bg-gradient-to-r group-hover:from-[#25f4ee] group-hover:to-pink-400 group-hover:bg-clip-text group-hover:text-transparent transition-all">
