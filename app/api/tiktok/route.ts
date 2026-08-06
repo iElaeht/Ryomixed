@@ -21,7 +21,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const apiResponse = await fetch(`https://tikwm.com/api/?url=${encodeURIComponent(url)}`, {
+    // Solicitud a la API con parámetros para intentar forzar la máxima calidad si la API lo soporta
+    const apiResponse = await fetch(`https://tikwm.com/api/?url=${encodeURIComponent(url)}&hd=1`, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
       }
@@ -63,9 +64,10 @@ export async function POST(request: Request) {
       }, { status: 200 });
     }
 
-    // 2. Detección para Video normal
-    const rawVideoUrl = data.data.hdplay || data.data.play;
-    console.log(`[TikTok - Video] Éxito | Autor: @${authorName} | Título: "${contentTitle.substring(0, 30)}..." | URL: ${url}`);
+    // 2. Detección para Video: Priorizamos estrictamente HD, luego HD alternativo, y por último SD
+    const rawVideoUrl = data.data.hdplay || data.data.hd_play || data.data.play;
+    
+    console.log(`[TikTok - Video] Éxito | Calidad HD disponible: ${Boolean(data.data.hdplay || data.data.hd_play)} | Autor: @${authorName} | URL: ${url}`);
 
     const videoData = {
       type: "video",
