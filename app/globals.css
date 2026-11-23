@@ -1,50 +1,205 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+:root,
+[data-theme="dark"] {
+  --bg-page: #0b0d10;
+  --bg-surface: #12161c;
+  --bg-elevated: #181d26;
+  --text-primary: #f8fafc;
+  --text-muted: #94a3b8;
+  --accent: #ff2e55;
+  --accent-secondary: #2dd4bf;
+  --border-subtle: rgba(248, 250, 252, 0.1);
+  --scrollbar-thumb: rgba(255, 46, 85, 0.55);
+  --scrollbar-thumb-hover: rgba(255, 46, 85, 0.85);
+}
+
+[data-theme="light"] {
+  --bg-page: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-elevated: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-muted: #475569;
+  --accent: #2563eb;
+  --accent-secondary: #0ea5e9;
+  --border-subtle: rgba(15, 23, 42, 0.1);
+  --scrollbar-thumb: rgba(37, 99, 235, 0.45);
+  --scrollbar-thumb-hover: rgba(37, 99, 235, 0.8);
+}
+
+[data-theme="catpuccino"] {
+  --bg-page: #f5efe6;
+  --bg-surface: #fbf7f2;
+  --bg-elevated: #ebe1d3;
+  --text-primary: #3b281e;
+  --text-muted: #7c5e4b;
+  --accent: #b47b56;
+  --accent-secondary: #8c5a3c;
+  --border-subtle: rgba(59, 40, 30, 0.14);
+  --scrollbar-thumb: rgba(180, 123, 86, 0.5);
+  --scrollbar-thumb-hover: rgba(180, 123, 86, 0.85);
+}
+
+[data-theme="algodon-de-azucar"] {
+  --bg-page: #f7ecfb;
+  --bg-surface: #fdf7ff;
+  --bg-elevated: #eedcf7;
+  --text-primary: #361d47;
+  --text-muted: #764c8f;
+  --accent: #ec4899;
+  --accent-secondary: #a855f7;
+  --border-subtle: rgba(54, 29, 71, 0.12);
+  --scrollbar-thumb: rgba(236, 72, 153, 0.48);
+  --scrollbar-thumb-hover: rgba(168, 85, 247, 0.82);
+}
+
+[data-theme="azul-violaceo-medianoche"] {
+  --bg-page: #110f24;
+  --bg-surface: #181533;
+  --bg-elevated: #221e45;
+  --text-primary: #f1efff;
+  --text-muted: #a39cc9;
+  --accent: #8b5cf6;
+  --accent-secondary: #6366f1;
+  --border-subtle: rgba(241, 239, 255, 0.12);
+  --scrollbar-thumb: rgba(139, 92, 246, 0.55);
+  --scrollbar-thumb-hover: rgba(139, 92, 246, 0.88);
+}
+
+[data-theme="vibraciones-lofi"] {
+  --bg-page: #21172b;
+  --bg-surface: #2c1f3a;
+  --bg-elevated: #39284b;
+  --text-primary: #f7eefc;
+  --text-muted: #b8a3cc;
+  --accent: #e07a5f;
+  --accent-secondary: #c77dff;
+  --border-subtle: rgba(247, 238, 252, 0.12);
+  --scrollbar-thumb: rgba(224, 122, 95, 0.55);
+  --scrollbar-thumb-hover: rgba(199, 125, 255, 0.85);
+}
+
+[data-theme="manzana-mentolada"] {
+  --bg-page: #e5f6ec;
+  --bg-surface: #f4fbf7;
+  --bg-elevated: #d1eedd;
+  --text-primary: #143624;
+  --text-muted: #3f6d54;
+  --accent: #10b981;
+  --accent-secondary: #059669;
+  --border-subtle: rgba(20, 54, 36, 0.12);
+  --scrollbar-thumb: rgba(16, 185, 129, 0.5);
+  --scrollbar-thumb-hover: rgba(5, 150, 105, 0.85);
+}
+
+[data-theme="rojo-carmesi"] {
+  --bg-page: #170b0e;
+  --bg-surface: #221015;
+  --bg-elevated: #2e151d;
+  --text-primary: #fff1f2;
+  --text-muted: #fda4af;
+  --border-subtle: rgba(244, 63, 94, 0.22);
+  --accent: #f43f5e;
+  --accent-secondary: #fb7185;
+}
+
+[data-theme="resplandor-croma"] {
+  --bg-page: #141024;
+  --bg-surface: #1e1736;
+  --bg-elevated: #29204a;
+  --text-primary: #f5f3ff;
+  --text-muted: #c4b5fd;
+  --border-subtle: rgba(192, 132, 252, 0.24);
+  --accent: #c084fc;
+  --accent-secondary: #38bdf8;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg-page: var(--bg-page);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-text-primary: var(--text-primary);
+  --color-text-muted: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-accent-secondary: var(--accent-secondary);
+  --color-border-subtle: var(--border-subtle);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+html,
+body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  transition: background-color 220ms ease, color 220ms ease;
+}
+
+/* --- Scrollbar minimalista con ocultado por inactividad (Escritorio) --- */
+@media (min-width: 768px) and (pointer: fine) {
+  html,
+  body {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  html::-webkit-scrollbar-track,
+  body::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  html::-webkit-scrollbar-thumb,
+  body::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 9999px;
+    transition: background-color 250ms ease;
+  }
+
+  html.is-scrolling,
+  body.is-scrolling {
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+
+  html.is-scrolling::-webkit-scrollbar-thumb,
+  body.is-scrolling::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+  }
+
+  html.is-scrolling::-webkit-scrollbar-thumb:hover,
+  body.is-scrolling::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* --- Mobile y pantallas táctiles: limpio y sin barra visible --- */
+@media (max-width: 767px), (pointer: coarse) {
+  html,
+  body {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
 }
 
-/* --- Utilidades globales para ocultar scrollbars manteniendo la funcionalidad --- */
-
-/* Ocultar barra de scroll para Chrome, Safari y Opera */
+/* Utilidad opcional para contenedores internos sin scrollbar */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
 
-/* Ocultar barra de scroll para IE, Edge y Firefox */
 .no-scrollbar {
-  -ms-overflow-style: none;  /* IE y Edge */
-  scrollbar-width: none;  /* Firefox */
-}
-
-/* Ocultar la barra de desplazamiento globalmente en toda la ventana del navegador */
-html, body {
-  scrollbar-width: none;  /* Firefox */
-  -ms-overflow-style: none;  /* IE y Edge */
-}
-
-html::-webkit-scrollbar, 
-body::-webkit-scrollbar {
-  display: none;  /* Chrome, Safari y Opera */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
