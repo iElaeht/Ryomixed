@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import TikTokVideoResult from "./TikTokVideoResult";
 import TikTokGalleryResult from "./TikTokGalleryResult";
 
@@ -9,46 +9,71 @@ export interface TikTokContentData {
   type: "video" | "image";
   title: string;
   author: string;
-  cover?: string;
-  downloadUrl?: string;
+  cover?: string | null;
+  downloadUrl?: string | null;
+  hdUrl?: string | null;
   images?: string[];
-  musicUrl?: string;
+  musicUrl?: string | null;
+  audioUrl?: string | null;
   duration?: number | string;
+  videoSize?: number | string | null;
   [key: string]: unknown;
 }
 
 interface TikTokResultProps {
-  data: TikTokContentData;
+  data: TikTokContentData | null | undefined;
 }
 
 const DEFAULT_PAGE_TITLE = "Ryomixed | Oficial Web";
 
 export default function TikTokResult({ data }: TikTokResultProps) {
-  const isGallery =
-    data.type === "image" && Array.isArray(data.images) && data.images.length > 0;
+  const isGallery = Boolean(
+    data &&
+      data.type === "image" &&
+      Array.isArray(data.images) &&
+      data.images.length > 0
+  );
+
+  const targetTitle = isGallery
+    ? "TikTok Galería | Ryomixed"
+    : "TikTok Video | Ryomixed";
+
+  const contentKey = useMemo<string>(() => {
+    if (!data) return "empty";
+    if (isGallery && data.images?.length) {
+      return `gallery-${String(data.images[0])}-${data.images.length}`;
+    }
+    return `video-${String(data.downloadUrl || data.title || "item")}`;
+  }, [data, isGallery]);
 
   useEffect(() => {
+    if (!data) return;
+
     const previousTitle = document.title || DEFAULT_PAGE_TITLE;
-    document.title = isGallery
-      ? "TikTok Galería | Ryomixed"
-      : "TikTok Video | Ryomixed";
+    document.title = targetTitle;
 
     return () => {
-      document.title = previousTitle === document.title
-        ? DEFAULT_PAGE_TITLE
-        : previousTitle;
+      document.title = previousTitle;
     };
-  }, [isGallery]);
+  }, [data, targetTitle]);
+
+  if (!data) {
+    return null;
+  }
 
   return (
     <section
-      aria-label={isGallery ? "Resultado de galería de TikTok" : "Resultado de video de TikTok"}
+      aria-label={
+        isGallery
+          ? "Resultado de galería de TikTok"
+          : "Resultado de video de TikTok"
+      }
       className="w-full"
     >
       {isGallery ? (
-        <TikTokGalleryResult data={data} />
+        <TikTokGalleryResult key={contentKey} data={data} />
       ) : (
-        <TikTokVideoResult data={data} />
+        <TikTokVideoResult key={contentKey} data={data} />
       )}
     </section>
   );

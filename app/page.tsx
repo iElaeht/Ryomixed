@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import Navbar from "@/components/layout/navbar";
 import { PullToRefresh } from "@/components/ui/PullToRefresh";
 import Footer from "@/components/layout/footer";
@@ -23,6 +23,7 @@ import { Code2 } from "lucide-react";
 
 const IS_MAINTENANCE = false;
 const IS_DEV_MODE = false;
+const CLIENT_FETCH_TIMEOUT_MS = 25000;
 
 interface MediaResultData {
   platform: "tiktok";
@@ -42,6 +43,9 @@ export default function Home() {
   const [url, setUrl] = useState("");
   const [mediaData, setMediaData] = useState<MediaResultData | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const lastSubmittedUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (IS_DEV_MODE) return;
@@ -71,6 +75,12 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
+
   const apiBaseUrl = useMemo(() => "", []);
 
   const activeStatusMessages = useMemo(() => {
@@ -79,85 +89,138 @@ export default function Home() {
     return getSearchStatusMessages(detected);
   }, [url]);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSearch = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (loading) return;
 
-    const validation = validateMediaUrl(url);
-    if (!validation.isValid || !validation.cleanUrl || !validation.platform) {
-      showToast({
-        title: validation.errorTitle || "Enlace no válido",
-        description:
-          validation.errorDescription ||
-          "Revisa el enlace ingresado e inténtalo de nuevo.",
-        variant: "warning",
-      });
-      return;
-    }
-
-    setLoading(true);
-    setMediaData(null);
-
-    try {
-      const response = await fetch(`${apiBaseUrl}/api/${validation.platform}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: validation.cleanUrl }),
-      });
-
-      const responseData = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          responseData.message ||
-            "El servidor no pudo procesar el enlace en este momento."
-        );
+      const validation = validateMediaUrl(url);
+      if (!validation.isValid || !validation.cleanUrl || !validation.platform) {
+        showToast({
+          title: validation.errorTitle || "Enlace no válido",
+          description:
+            validation.errorDescription ||
+            "Revisa el enlace ingresado e inténtalo de nuevo.",
+          variant: "warning",
+        });
+        return;
       }
 
-      if (responseData.success && responseData.data) {
+      // Evita lanzar exactamente la misma petición si ya está en curso
+      if (lastSubmittedUrlRef.current === validation.cleanUrl && loading) {
+        return;
+      }
+
+      abortControllerRef.current?.abort();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      lastSubmittedUrlRef.current = validation.cleanUrl;
+
+      const timeoutId = window.setTimeout(() => {
+        controller.abort();
+      }, CLIENT_FETCH_TIMEOUT_MS);
+
+      setLoading(true);
+      setMediaData(null);
+
+      try {
+        const response = await fetch(
+          `${apiBaseUrl}/api/${validation.platform}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: validation.cleanUrl }),
+            signal: controller.signal,
+          }
+        );
+
+        const rawBody = await response.text();
+        let responseData: {
+          success?: boolean;
+          message?: string;
+          data?: MediaResultData;
+        } = {};
+
+        if (rawBody.trim()) {
+          try {
+            responseData = JSON.parse(rawBody);
+          } catch {
+            throw new Error(
+              "El servidor devolvió una respuesta inesperada. Intenta nuevamente."
+            );
+          }
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            responseData.message ||
+              "El servidor no pudo procesar el enlace en este momento."
+          );
+        }
+
+        if (
+        responseData.success &&
+        responseData.data &&
+        validation.platform === "tiktok"
+      ) {
         setMediaData({
           ...responseData.data,
-          platform: validation.platform,
+          platform: "tiktok",
         });
-        showToast({
-          title: "Contenido listo",
-          description: "El archivo se cargó correctamente.",
-          variant: "success",
-        });
-      } else {
-        throw new Error(
-          responseData.message || "No se encontró contenido disponible."
-        );
-      }
-    } catch (error: unknown) {
-      const isNetworkError =
-        error instanceof TypeError ||
-        (error instanceof Error &&
-          /fetch|network|failed/i.test(error.message));
+          showToast({
+            title: "Contenido listo",
+            description: "El archivo se cargó correctamente.",
+            variant: "success",
+          });
+        } else {
+          throw new Error(
+            responseData.message || "No se encontró contenido disponible."
+          );
+        }
+      } catch (error: unknown) {
+        const isAbortOrTimeout =
+          error instanceof DOMException && error.name === "AbortError";
+        const isNetworkError =
+          !isAbortOrTimeout &&
+          (error instanceof TypeError ||
+            (error instanceof Error &&
+              /fetch|network|failed/i.test(error.message)));
 
-      showToast({
-        title: isNetworkError
-          ? "Servidor fuera de línea"
-          : "No se pudo obtener el contenido",
-        description: isNetworkError
-          ? "Parece haber una caída o fallo de red. Intenta nuevamente en unos segundos."
-          : error instanceof Error
-          ? error.message
-          : "Ocurrió un error inesperado al conectar con el servidor.",
-        variant: "error",
-        duration: 10000,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+        showToast({
+          title: isAbortOrTimeout
+            ? "Tiempo de espera agotado"
+            : isNetworkError
+              ? "Servidor fuera de línea"
+              : "No se pudo obtener el contenido",
+          description: isAbortOrTimeout
+            ? "La solicitud tardó demasiado. Intenta nuevamente en unos segundos."
+            : isNetworkError
+              ? "Parece haber una caída o fallo de red. Intenta nuevamente en unos segundos."
+              : error instanceof Error
+                ? error.message
+                : "Ocurrió un error inesperado al conectar con el servidor.",
+          variant: "error",
+          duration: 10000,
+        });
+      } finally {
+        window.clearTimeout(timeoutId);
+        if (abortControllerRef.current === controller) {
+          abortControllerRef.current = null;
+        }
+        lastSubmittedUrlRef.current = null;
+        setLoading(false);
+      }
+    },
+    [apiBaseUrl, loading, showToast, url]
+  );
 
   const handlePasteClick = async () => {
     try {
       if (!navigator.clipboard || !navigator.clipboard.readText) {
         throw new Error("Portapapeles no soportado.");
       }
-      const text = await navigator.clipboard.readText();
-      if (!text.trim()) {
+      const text = (await navigator.clipboard.readText()).trim();
+      if (!text) {
         showToast({
           title: "Portapapeles vacío",
           description: "Copia un enlace antes de pulsar Pegar.",
@@ -194,41 +257,41 @@ export default function Home() {
         </div>
       )}
       <Navbar />
-  <PullToRefresh>
+      <PullToRefresh>
+        <main className="flex-grow flex flex-col items-center px-4 pt-10 md:pt-16 pb-20">
+          <div className="w-full max-w-4xl text-center">
+            <HeroTitle />
 
-      <main className="flex-grow flex flex-col items-center px-4 pt-10 md:pt-16 pb-20">
-        <div className="w-full max-w-4xl text-center">
-          <HeroTitle />
+            <div className="mb-12">
+              <SearchBar
+                value={url}
+                placeholder="Pega link de TikTok..."
+                loading={loading}
+                statusMessages={activeStatusMessages}
+                progressDurationMs={SEARCH_PROGRESS_DURATION_MS}
+                onChange={setUrl}
+                onClear={() => {
+                  abortControllerRef.current?.abort();
+                  setUrl("");
+                  setMediaData(null);
+                }}
+                onPaste={handlePasteClick}
+                onSubmit={handleSearch}
+              />
+            </div>
 
-          <div className="mb-12">
-            <SearchBar
-              value={url}
-              placeholder="Pega link de TikTok..."
-              loading={loading}
-              statusMessages={activeStatusMessages}
-              progressDurationMs={SEARCH_PROGRESS_DURATION_MS}
-              onChange={setUrl}
-              onClear={() => {
-                setUrl("");
-                setMediaData(null);
-              }}
-              onPaste={handlePasteClick}
-              onSubmit={handleSearch}
-            />
+            <div className="w-full flex justify-center pb-12 transition-all duration-300">
+              {loading && <TiktokResultSkeleton />}
+              {!loading && mediaData?.platform === "tiktok" && (
+                <div className="w-full">
+                  <TiktokResult data={mediaData} />
+                </div>
+              )}
+            </div>
           </div>
+        </main>
 
-          <div className="w-full flex justify-center pb-12 transition-all duration-300">
-            {loading && <TiktokResultSkeleton />}
-            {!loading && mediaData?.platform === "tiktok" && (
-              <div className="w-full">
-                <TiktokResult data={mediaData} />
-              </div>
-            )}
-          </div>
-        </div>
-      </main>
-
-      <Footer />
+        <Footer />
       </PullToRefresh>
     </div>
   );

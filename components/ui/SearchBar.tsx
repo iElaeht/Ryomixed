@@ -20,6 +20,8 @@ export interface SearchBarProps {
   onSubmit: (e: React.FormEvent) => void;
 }
 
+const MAX_INPUT_LENGTH = 2048;
+
 export const SearchBar: React.FC<SearchBarProps> = ({
   value,
   placeholder = "Pega un enlace aquí...",
@@ -54,7 +56,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     let frameId: number;
 
     const tick = (now: number) => {
-      const elapsed = now - startTime;
+      const elapsed = Math.max(0, now - startTime);
       const pct = Math.min(100, (elapsed / duration) * 100);
       setProgress(pct);
 
@@ -81,16 +83,25 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   const currentStatusText =
     safeMessages[messageIndex] ?? safeMessages[0] ?? "Procesando...";
 
+  const handleFormSubmit = (e: React.FormEvent) => {
+    if (loading || !value.trim()) {
+      e.preventDefault();
+      return;
+    }
+    onSubmit(e);
+  };
+
   return (
     <div className="w-full max-w-2xl mx-auto flex flex-col items-center">
       <form
-        onSubmit={onSubmit}
+        onSubmit={handleFormSubmit}
         className="w-full flex flex-col items-center gap-5"
       >
         <div className="w-full flex items-center bg-[var(--bg-surface)] border border-[var(--border-subtle)] focus-within:border-[var(--accent)] rounded-2xl p-1.5 shadow-lg transition-colors">
           <input
             type="text"
             value={value}
+            maxLength={MAX_INPUT_LENGTH}
             placeholder={placeholder}
             disabled={loading}
             onChange={(e) => onChange(e.target.value)}
@@ -112,7 +123,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
             <button
               type="button"
-              onClick={onPaste}
+              onClick={() => {
+                if (!loading) onPaste();
+              }}
               disabled={loading}
               aria-label="Pegar enlace desde el portapapeles"
               className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-[var(--bg-elevated)] hover:border-[var(--accent-secondary)]/50 text-[var(--accent-secondary)] border border-[var(--border-subtle)] transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"

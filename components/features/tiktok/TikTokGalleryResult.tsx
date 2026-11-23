@@ -20,12 +20,11 @@ import { TikTokContentData } from "./TiktokResult";
 import { useToast } from "@/components/providers/ToastProvider";
 
 interface TikTokGalleryResultProps {
-  data: TikTokContentData & {
-    audioUrl?: string;
-  };
+  data: TikTokContentData;
 }
 
 const DOWNLOAD_PROGRESS_DURATION_MS = 8000;
+const PRELOAD_CONCURRENCY = 3;
 
 function generateRandomId(length = 7): string {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -58,7 +57,12 @@ export default function TikTokGalleryResult({ data }: TikTokGalleryResultProps) 
     [data.images]
   );
 
-  const hasAudio = Boolean(data.audioUrl || data.musicUrl);
+  const audioUrl = useMemo(
+    () => data.audioUrl || data.musicUrl || "",
+    [data.audioUrl, data.musicUrl]
+  );
+  const hasAudio = Boolean(audioUrl);
+
   const [activeTab, setActiveTab] = useState<"images" | "audio">("images");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [cachedImageUrls, setCachedImageUrls] = useState<Record<string, string>>(
@@ -87,11 +91,6 @@ export default function TikTokGalleryResult({ data }: TikTokGalleryResultProps) 
       : `Ryomixed_audioo_${fallbackId}`;
   }, [data.title, activeTab, fallbackId]);
 
-  const audioUrl = useMemo(
-    () => data.audioUrl || data.musicUrl || "",
-    [data.audioUrl, data.musicUrl]
-  );
-
   const activeImageUrl = images[selectedIndex] || "";
   const activeDisplaySrc = activeImageUrl
     ? cachedImageUrls[activeImageUrl] || ""
@@ -107,8 +106,9 @@ export default function TikTokGalleryResult({ data }: TikTokGalleryResultProps) 
     return `${baseFileName}_0${selectedIndex + 1} (${images.length} fotos).jpg`;
   }, [activeTab, baseFileName, images.length, selectedIndex]);
 
-  // Carga cada imagen una sola vez por búsqueda y guarda su blob URL en memoria
+  // Carga cada imagen una sola vez por búsqueda con concurrencia limitada y guarda su blob URL en memoria
   useEffect(() => {
+    setActiveTab("images");
     setSelectedIndex(0);
     setBrokenImages({});
     setIsLightboxOpen(false);
@@ -124,24 +124,38 @@ export default function TikTokGalleryResult({ data }: TikTokGalleryResultProps) 
     const preloadGalleryImages = async () => {
       const nextMap: Record<string, string> = {};
       const createdBlobs: string[] = [];
+      let cursor = 0;
 
-      await Promise.all(
-        images.map(async (imgUrl, idx) => {
+      const worker = async () => {
+        while (!cancelled) {
+          const idx = cursor;
+          cursor += 1;
+          if (idx >= images.length) break;
+
+          const imgUrl = images[idx];
           try {
             const proxyUrl = `/api/proxy?url=${encodeURIComponent(imgUrl)}`;
             const res = await fetch(proxyUrl);
             if (!res.ok) throw new Error("Failed to fetch image");
             const blob = await res.blob();
+            if (cancelled) return;
             const objectUrl = window.URL.createObjectURL(blob);
             createdBlobs.push(objectUrl);
             nextMap[imgUrl] = objectUrl;
+            setCachedImageUrls((prev) => ({ ...prev, [imgUrl]: objectUrl }));
           } catch {
             if (!cancelled) {
               setBrokenImages((prev) => ({ ...prev, [idx]: true }));
             }
           }
-        })
+        }
+      };
+
+      const workers = Array.from(
+        { length: Math.min(PRELOAD_CONCURRENCY, images.length) },
+        () => worker()
       );
+      await Promise.all(workers);
 
       if (cancelled) {
         createdBlobs.forEach((url) => window.URL.revokeObjectURL(url));
@@ -149,7 +163,7 @@ export default function TikTokGalleryResult({ data }: TikTokGalleryResultProps) 
       }
 
       blobUrlsRef.current = createdBlobs;
-      setCachedImageUrls(nextMap);
+      setCachedImageUrls((prev) => ({ ...prev, ...nextMap }));
     };
 
     preloadGalleryImages();
@@ -256,6 +270,8 @@ export default function TikTokGalleryResult({ data }: TikTokGalleryResultProps) 
   };
 
   const handleDownloadCurrent = async () => {
+    if (downloading) return;
+
     if (activeTab === "audio") {
       if (!audioUrl) {
         showToast({
@@ -335,7 +351,7 @@ export default function TikTokGalleryResult({ data }: TikTokGalleryResultProps) 
   };
 
   const handleDownloadAllImages = async () => {
-    if (images.length === 0) return;
+    if (downloading || images.length === 0) return;
 
     setDownloading(true);
     setDownloadProgress(5);
@@ -583,7 +599,9 @@ export default function TikTokGalleryResult({ data }: TikTokGalleryResultProps) 
             <button
               type="button"
               disabled={downloading || !hasAudio}
-              onClick={() => setActiveTab("audio")}
+              onClick={() => {
+                if (hasAudio) setActiveTab("audio");
+              }}
               style={
                 activeTab === "audio"
                   ? {

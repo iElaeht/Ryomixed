@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Video,
   Music,
@@ -18,12 +18,12 @@ import { useToast } from "@/components/providers/ToastProvider";
 
 interface TikTokVideoResultProps {
   data: TikTokContentData & {
-    hdUrl?: string;
-    playHd?: string;
-    audioUrl?: string;
-    size?: number | string;
-    videoSize?: number | string;
-    audioSize?: number | string;
+    hdUrl?: string | null;
+    playHd?: string | null;
+    audioUrl?: string | null;
+    size?: number | string | null;
+    videoSize?: number | string | null;
+    audioSize?: number | string | null;
   };
 }
 
@@ -87,6 +87,20 @@ export default function TikTokVideoResult({ data }: TikTokVideoResultProps) {
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [imageError, setImageError] = useState(false);
 
+  const resetTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    setImageError(false);
+  }, [data.cover]);
+
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current !== null) {
+        window.clearTimeout(resetTimerRef.current);
+      }
+    };
+  }, []);
+
   const fallbackIds = useMemo(
     () => ({
       video: generateRandomId(7),
@@ -140,6 +154,7 @@ export default function TikTokVideoResult({ data }: TikTokVideoResultProps) {
     }
 
     let cancelled = false;
+    const controller = new AbortController();
     setCheckingSize(true);
 
     const fetchContentLength = async () => {
@@ -147,7 +162,10 @@ export default function TikTokVideoResult({ data }: TikTokVideoResultProps) {
         const proxyHeadUrl = `/api/proxy?url=${encodeURIComponent(
           currentFileUrl
         )}`;
-        const headResp = await fetch(proxyHeadUrl, { method: "HEAD" });
+        const headResp = await fetch(proxyHeadUrl, {
+          method: "HEAD",
+          signal: controller.signal,
+        });
         const lenHeader = headResp.headers.get("content-length");
         if (lenHeader && !cancelled) {
           const formatted = formatBytes(Number(lenHeader));
@@ -170,6 +188,7 @@ export default function TikTokVideoResult({ data }: TikTokVideoResultProps) {
     fetchContentLength();
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [initialKnownSize, currentFileUrl]);
 
@@ -185,11 +204,7 @@ export default function TikTokVideoResult({ data }: TikTokVideoResultProps) {
 
     const tick = (now: number) => {
       const elapsed = now - startTime;
-      // Avanza suavemente hasta 94% y se completa al terminar el fetch
-      const pct = Math.min(
-        94,
-        (elapsed / DOWNLOAD_PROGRESS_DURATION_MS) * 94
-      );
+      const pct = Math.min(94, (elapsed / DOWNLOAD_PROGRESS_DURATION_MS) * 94);
       setDownloadProgress(pct);
       frameId = requestAnimationFrame(tick);
     };
@@ -207,6 +222,8 @@ export default function TikTokVideoResult({ data }: TikTokVideoResultProps) {
   );
 
   const handleDirectDownload = async () => {
+    if (downloading) return;
+
     if (!currentFileUrl) {
       showToast({
         title: "Archivo no disponible",
@@ -215,6 +232,11 @@ export default function TikTokVideoResult({ data }: TikTokVideoResultProps) {
         variant: "error",
       });
       return;
+    }
+
+    if (resetTimerRef.current !== null) {
+      window.clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = null;
     }
 
     setDownloading(true);
@@ -265,7 +287,7 @@ export default function TikTokVideoResult({ data }: TikTokVideoResultProps) {
         variant: "error",
       });
     } finally {
-      setTimeout(() => {
+      resetTimerRef.current = window.setTimeout(() => {
         setDownloading(false);
         setDownloadProgress(0);
       }, 250);
