@@ -255,7 +255,7 @@ export const ThemeSwitcher: React.FC<ThemeSwitcherProps> = ({
           aria-label="Temas disponibles"
           className={`z-[120] rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]/98 backdrop-blur-2xl p-2 shadow-2xl ${
             isNavbarScrolled
-              ? "fixed top-20 left-1/2 -translate-x-1/2 w-[calc(100vw-2rem)] max-w-sm"
+              ? "fixed top-20 left-1/2 -translate-x-1/2 w-[calc(100vw-2rem)] max-w-sm lg:absolute lg:top-full lg:left-auto lg:right-0 lg:translate-x-0 lg:mt-2.5 lg:w-80"
               : "absolute right-0 mt-2.5 w-72 sm:w-80 max-w-[calc(100vw-2rem)]"
           }`}
         >

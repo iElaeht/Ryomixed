@@ -128,6 +128,8 @@ const Navbar: React.FC<NavProps> = ({ onOpenAbout, onOpenAnuncios }) => {
     }
   };
 
+  const isTopOverlayOpen = !isScrolled && (isMobileMenuOpen || isThemeOpen);
+
   const menuItems = (
     <div className="flex flex-col gap-1.5">
       <a
@@ -135,10 +137,10 @@ const Navbar: React.FC<NavProps> = ({ onOpenAbout, onOpenAnuncios }) => {
         target="_blank"
         rel="noopener noreferrer"
         onClick={closeMobileMenu}
-        className="flex items-center justify-between px-3.5 py-3 rounded-xl hover:bg-[var(--bg-elevated)]/80 text-[var(--text-primary)] transition-colors"
+        className="flex items-center justify-between px-3.5 py-3 rounded-xl hover:bg-[var(--bg-elevated)] text-[var(--text-primary)] transition-colors"
       >
         <div className="flex items-center gap-3">
-          <Coffee className="w-4 h-4 text-amber-400" />
+          <Coffee className="w-4 h-4 text-amber-500" />
           <span className="text-xs font-semibold tracking-wide">
             Apoyar proyecto
           </span>
@@ -149,7 +151,7 @@ const Navbar: React.FC<NavProps> = ({ onOpenAbout, onOpenAnuncios }) => {
       <button
         type="button"
         onClick={handleOpenAnuncios}
-        className="flex items-center justify-between px-3.5 py-3 rounded-xl hover:bg-[var(--bg-elevated)]/80 text-[var(--text-primary)] transition-colors w-full cursor-pointer"
+        className="flex items-center justify-between px-3.5 py-3 rounded-xl hover:bg-[var(--bg-elevated)] text-[var(--text-primary)] transition-colors w-full cursor-pointer"
       >
         <div className="flex items-center gap-3">
           <Sparkles className="w-4 h-4 text-[var(--accent-secondary)]" />
@@ -163,7 +165,7 @@ const Navbar: React.FC<NavProps> = ({ onOpenAbout, onOpenAnuncios }) => {
       <button
         type="button"
         onClick={handleOpenAbout}
-        className="flex items-center justify-between px-3.5 py-3 rounded-xl hover:bg-[var(--bg-elevated)]/80 text-[var(--text-primary)] transition-colors w-full cursor-pointer"
+        className="flex items-center justify-between px-3.5 py-3 rounded-xl hover:bg-[var(--bg-elevated)] text-[var(--text-primary)] transition-colors w-full cursor-pointer"
       >
         <div className="flex items-center gap-3">
           <Info className="w-4 h-4 text-[var(--accent)]" />
@@ -177,10 +179,10 @@ const Navbar: React.FC<NavProps> = ({ onOpenAbout, onOpenAnuncios }) => {
 
   return (
     <>
-      {isMobileMenuOpen && (
+      {(isMobileMenuOpen || isThemeOpen) && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-xs z-[90] lg:hidden transition-opacity duration-300"
-          onClick={closeMobileMenu}
+          className="fixed inset-0 bg-black/45 backdrop-blur-xs z-[90] lg:hidden transition-opacity duration-300"
+          onClick={closeOverlays}
         />
       )}
 
@@ -215,10 +217,12 @@ const Navbar: React.FC<NavProps> = ({ onOpenAbout, onOpenAnuncios }) => {
         }`}
       >
         <nav
-          className={`mx-auto transition-all duration-500 ease-out relative z-[101] ${
+          className={`mx-auto transition-all duration-300 ease-out relative z-[101] ${
             isScrolled
-              ? "max-w-5xl rounded-2xl sm:rounded-full bg-[var(--bg-surface)]/90 backdrop-blur-xl border border-[var(--border-subtle)] shadow-[0_12px_32px_-8px_rgba(0,0,0,0.35)] px-4 sm:px-6 py-2.5"
-              : "max-w-7xl rounded-none bg-transparent border-b border-transparent px-5 sm:px-8 py-5"
+              ? "max-w-5xl rounded-2xl sm:rounded-full bg-[var(--bg-surface)]/95 backdrop-blur-xl border border-[var(--border-subtle)] shadow-[0_12px_32px_-8px_rgba(0,0,0,0.35)] px-4 sm:px-6 py-2.5"
+              : isTopOverlayOpen
+                ? "max-w-7xl rounded-b-3xl bg-[var(--bg-surface)]/98 backdrop-blur-2xl border-b border-[var(--border-subtle)] shadow-2xl px-5 sm:px-8 py-5"
+                : "max-w-7xl rounded-none bg-transparent border-b border-transparent px-5 sm:px-8 py-5"
           }`}
         >
           <div className="flex items-center justify-between gap-4">
@@ -255,7 +259,7 @@ const Navbar: React.FC<NavProps> = ({ onOpenAbout, onOpenAnuncios }) => {
                 aria-label="Apoyar en Ko-fi"
                 className="group flex items-center px-3 py-2 rounded-full text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]/80 transition-all duration-300"
               >
-                <Coffee className="w-4 h-4 text-amber-400 shrink-0 transition-transform duration-300 group-hover:scale-110" />
+                <Coffee className="w-4 h-4 text-amber-500 shrink-0 transition-transform duration-300 group-hover:scale-110" />
                 <span className="max-w-0 overflow-hidden opacity-0 -translate-x-1.5 whitespace-nowrap group-hover:max-w-[90px] group-focus-visible:max-w-[90px] group-hover:opacity-100 group-focus-visible:opacity-100 group-hover:translate-x-2 group-focus-visible:translate-x-2 transition-all duration-300 ease-out">
                   Apoyar
                 </span>
@@ -299,6 +303,7 @@ const Navbar: React.FC<NavProps> = ({ onOpenAbout, onOpenAnuncios }) => {
               <div className="hidden sm:block">
                 <ThemeSwitcher
                   variant="desktop"
+                  open={isThemeOpen}
                   forceClose={isMobileMenuOpen}
                   isNavbarScrolled={isScrolled}
                   inlinePanel
@@ -308,6 +313,7 @@ const Navbar: React.FC<NavProps> = ({ onOpenAbout, onOpenAnuncios }) => {
               <div className="sm:hidden">
                 <ThemeSwitcher
                   variant="compact"
+                  open={isThemeOpen}
                   forceClose={isMobileMenuOpen}
                   isNavbarScrolled={isScrolled}
                   inlinePanel
@@ -334,7 +340,7 @@ const Navbar: React.FC<NavProps> = ({ onOpenAbout, onOpenAnuncios }) => {
           {/* Panel desplegable ancho cuando estamos arriba (!isScrolled) */}
           <div
             className={`lg:hidden overflow-hidden transition-all duration-300 ease-out ${
-              !isScrolled && (isMobileMenuOpen || isThemeOpen)
+              isTopOverlayOpen
                 ? "max-h-96 opacity-100 pt-4 pb-2 mt-3 border-t border-[var(--border-subtle)]"
                 : "max-h-0 opacity-0 pointer-events-none"
             }`}
